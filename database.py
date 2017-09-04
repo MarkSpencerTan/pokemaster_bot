@@ -5,6 +5,8 @@ import settings
 import json
 from pprint import pprint
 from random import randint
+from numpy.random import choice
+import tiers
 
 client = pymongo.MongoClient(settings.MONGO_URI)
 
@@ -40,5 +42,26 @@ def get_pokemon(id):
 	return pkmn
 
 def get_random_pokemon():
-	id = randint(1,718)
+	rarity = choice(5, 1, p=[0.30, 0.25, .20, .15, .10])
+	print(rarity[0])
+	id_list = tiers.TIERS[str(rarity[0])]
+	id = id_list[randint(0, len(id_list) - 1)]
 	return get_pokemon(id)
+
+def add_pokemon(user, pokemon):
+	users_db[user]["storage"].insert_one({
+		"national_id": pokemon["national_id"],
+		"name": pokemon["name"],
+		"candies": 1,
+		"evolution": pokemon["evolutions"]
+	})
+
+def get_storage(user):
+	"""
+	Retrieves a list of pokemon id from a user's storage
+	"""
+	storage = users_db[user]["storage"].find({})
+	id_list = []
+	for pkmn in storage:
+		id_list.append("{}[{}]".format(pkmn["name"], pkmn["national_id"]))
+	return id_list
