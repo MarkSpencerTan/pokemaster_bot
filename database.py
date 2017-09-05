@@ -23,12 +23,14 @@ def mongo_get(database, id):
 	if database.name == 'pokemon':
 		return database.find_one({'national_id': id})
 
+
 def api_get(type, id):
 	"""
 	Calls the api and returns the object specified by its id
 	"""
 	if type == 'pokemon':
 		return json.loads(requests.get('{}/pokemon/{}'.format(pokeapi_url, id)).text)
+
 
 def get_pokemon(id):
 	# check mongo for pokemon
@@ -41,12 +43,14 @@ def get_pokemon(id):
 	print(pkmn['name'])
 	return pkmn
 
+
 def get_random_pokemon():
-	rarity = choice(5, 1, p=[0.30, 0.25, .20, .15, .10])
+	rarity = choice(5, 1, p=[0.40, 0.35, .15, .10, .05])
 	print(rarity[0])
 	id_list = tiers.TIERS[str(rarity[0])]
 	id = id_list[randint(0, len(id_list) - 1)]
 	return get_pokemon(id)
+
 
 def add_pokemon(user, pokemon):
 	users_db[user]["storage"].insert_one({
@@ -56,12 +60,18 @@ def add_pokemon(user, pokemon):
 		"evolution": pokemon["evolutions"]
 	})
 
+
 def get_storage(user):
 	"""
-	Retrieves a list of pokemon id from a user's storage
+	Retrieves a list of pokemon dicts from a user's storage
+	[{"name": "pikachu", "id": 99} ... ] 
 	"""
 	storage = users_db[user]["storage"].find({})
-	id_list = []
+	pkmn_list = []
 	for pkmn in storage:
-		id_list.append("{}[{}]".format(pkmn["name"], pkmn["national_id"]))
-	return id_list
+		pkmn_list.append({"name": pkmn["name"], "id":pkmn["national_id"]})
+	return pkmn_list
+
+
+# def add_to_party(user, pkmn_id):
+# 	if 
