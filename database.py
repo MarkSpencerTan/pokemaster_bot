@@ -16,11 +16,11 @@ moves_db = client.pokemaster.moves
 
 pokeapi_url = "https://pokeapi.co/api/v1"
 
-def mongo_get(database, id):
+def mongo_get(database, id=None, user=None):
 	"""
-	Calls MongoDB and returns the object specified by its id
+	Calls MongoDB and returns the pokemon object specified by its id
 	"""
-	if database.name == 'pokemon':
+	if database.name in ('pokemon', 'users'):
 		return database.find_one({'national_id': id})
 
 
@@ -45,19 +45,20 @@ def get_pokemon(id):
 
 
 def get_random_pokemon():
-	rarity = choice(5, 1, p=[0.40, 0.35, .15, .10, .05])
+	rarity = choice(5, 1, p=[0.45, 0.25, .15, .10, .05])
 	print(rarity[0])
 	id_list = tiers.TIERS[str(rarity[0])]
 	id = id_list[randint(0, len(id_list) - 1)]
 	return get_pokemon(id)
 
 
-def add_pokemon(user, pokemon):
+def add_pokemon(user, pokemon, shiny=False):
 	users_db[user]["storage"].insert_one({
 		"national_id": pokemon["national_id"],
 		"name": pokemon["name"],
 		"candies": 1,
-		"evolution": pokemon["evolutions"]
+		"evolution": pokemon["evolutions"],
+		"shiny": shiny
 	})
 
 
@@ -69,9 +70,18 @@ def get_storage(user):
 	storage = users_db[user]["storage"].find({})
 	pkmn_list = []
 	for pkmn in storage:
-		pkmn_list.append({"name": pkmn["name"], "id":pkmn["national_id"]})
+		if "shiny" in pkmn.keys() and pkmn["shiny"]:
+			pkmn_list.append({"name": "✪" + pkmn["name"], "id":pkmn["national_id"]})
+		else:
+			pkmn_list.append({"name": pkmn["name"], "id":pkmn["national_id"]})
 	return pkmn_list
 
 
-# def add_to_party(user, pkmn_id):
-# 	if 
+def add_to_party(user, pkmn_id):
+	# check if exists on storage
+	if users_db[user]["storage"].find_one({"national_id": pkmn_id}):
+		return
+
+	# remove from storage
+
+	# add to party

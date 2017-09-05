@@ -2,6 +2,7 @@ from discord.ext.commands import Bot
 from discord import Client
 from discord.ext.commands.cooldowns import BucketType
 from discord.embeds import Embed
+from random import randint
 import discord.ext.commands as commands
 import threading
 
@@ -84,9 +85,22 @@ async def catch(message):
 	else:
 		color = 0x9909F7
 
-	description = "**{}** You have caught **{}**".format(message.author, pkmn_name)
+	# random generator if shiny
+	shiny_chance = randint(1,100)
+	if shiny_chance > 50:
+		shiny = True
+		description = "**{}** You have caught :star2:**{}**".format(message.author, pkmn_name)
+	else:
+		shiny = False
+		description = "**{}** You have caught **{}**".format(message.author, pkmn_name)
+
 	embed = Embed(color=color, description=description)
-	embed.set_image(url="http://pokeapi.co/media/img/{}.png".format(pkmn_id))
+
+	if shiny:
+		embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados-shiny/{}.gif".format(pkmn_name.lower()))
+	else:
+		embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(pkmn_name.lower()))
+
 	embed.add_field(name='Name', value="{}[{}]".format(pkmn_name, pkmn_id))
 	embed.add_field(name="Types", value=type_str)
 	embed.add_field(name='Hp', value=pkmn["hp"])
@@ -94,9 +108,9 @@ async def catch(message):
 	embed.add_field(name='Defense', value=pkmn["defense"])
 	embed.add_field(name='Speed', value=pkmn["speed"])
 	embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(pkmn_id))
-	
+
 	# add the pokemon to the user db
-	database.add_pokemon(message.author, pkmn)
+	database.add_pokemon(message.author, pkmn, shiny=shiny)
 	await pokemaster_bot.say(embed=embed)
 
 
