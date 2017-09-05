@@ -3,16 +3,21 @@ EMOJIS = {
 	"fire": ":fire:",
 	"grass": ":leaves:",
 	"rock": ":full_moon:",
-	"electric": ":thunder_cloud_rain:",
+	"electric": ":zap: ",
 	"ghost":":ghost:",
 	"ground":":poop:",
 	"fairy":":sparkles:",
 	"bug":":bug:",
-	"poison": ":imp:",
-	"wind": ":wind_blowing_face:",
-	"fighting": ":punch:",
+	"poison": ":skull_crossbones:",
+	"wind": ":cloud_tornado:",
+	"fighting": ":boxing_glove:",
 	"normal": ":mouse:",
-	"ice": ":snowflake:"
+	"ice": ":snowflake:",
+	"dark": ":spy:",
+	"steel": ":robot:",
+	"psychic": ":alien:",
+	"flying":":dove:",
+	"dragon":":dragon_face:"
 }
 
 def get_emoji(type):
