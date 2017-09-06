@@ -14,9 +14,12 @@ import tiers
 
 pokemaster_bot = Bot(command_prefix="!")
 
+
 @pokemaster_bot.event
-async def on_read():
-	print("Hello New Pokemon Trainer!")
+async def on_command_error(ctx, error):
+	user = str(error.message.author).split("#")[0]
+	message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
+	await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
 
 
 @commands.cooldown(1, 15, type=BucketType.user)
@@ -54,6 +57,29 @@ async def storage(ctx, *args):
 	return await show_storage(message, box=box, is_sorted=sorted)
 
 
+@commands.cooldown(1, 2, type=BucketType.user)
+@pokemaster_bot.command(pass_context=True)
+async def party(ctx, *args):
+	author = ctx.message.author
+	operation = None
+	pkmn_id = None
+	result = True
+	for arg in args:
+		if arg in ('add', 'remove'):
+			operation = arg
+		elif int(arg) in list(range(721)):
+			pkmn_id = int(arg)
+	if operation == 'add':
+		result = database.add_to_party(author, pkmn_id)
+	if operation == 'remove':
+		result = database.remove_from_party(author, pkmn_id)
+
+	if not result:
+		return await pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
+
+	return await show_party(author)
+
+
 async def get_members():
 	members = pokemaster_bot.get_all_members()
 	response = ""
@@ -87,7 +113,7 @@ async def catch(message):
 
 	# random generator if shiny
 	shiny_chance = randint(1,100)
-	if shiny_chance > 50:
+	if shiny_chance < 2:
 		shiny = True
 		description = "**{}** You have caught :star2:**{}**".format(message.author, pkmn_name)
 	else:
@@ -194,6 +220,16 @@ async def show_storage_by_rarity(message, rarity, is_sorted=True, box=1):
 
 	embed.add_field(name="Storage [**{}**/{}]".format(box, len(boxes)), value=storage_list, inline=True)
 	return await pokemaster_bot.say(embed=embed)
+
+
+async def show_party(author):
+	embed = Embed(color=0xB80800, description="**{}**'s Party Pokemon".format(author))
+	
+	party_list = database.get_party(author)
+	for pkmn in party_list:
+		pkmn_string = "Hp:{}\t Candies:{}".format("100%" ,pkmn["candies"])
+		embed.add_field(name="**{}**[{}]".format(pkmn["name"], str(pkmn["national_id"])), value=pkmn_string, inline=True)
+	await pokemaster_bot.say(embed=embed)
 
 # run the bot
 pokemaster_bot.run(settings.BOT_TOKEN)

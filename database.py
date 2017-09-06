@@ -45,8 +45,7 @@ def get_pokemon(id):
 
 
 def get_random_pokemon():
-	rarity = choice(5, 1, p=[0.45, 0.25, .15, .10, .05])
-	print(rarity[0])
+	rarity = choice(5, 1, p=[0.50, 0.25, .19, .05, .01])
 	id_list = tiers.TIERS[str(rarity[0])]
 	id = id_list[randint(0, len(id_list) - 1)]
 	return get_pokemon(id)
@@ -77,11 +76,40 @@ def get_storage(user):
 	return pkmn_list
 
 
+def get_party(user):
+	"""
+	Retrieves a list of pokemon dicts from a user's party
+	[{"name": "pikachu", "id": 99} ... ] 
+	"""
+	return users_db[user]["party"].find({})
+
+
 def add_to_party(user, pkmn_id):
 	# check if exists on storage
-	if users_db[user]["storage"].find_one({"national_id": pkmn_id}):
-		return
+	pkmn = users_db[user]["storage"].find_one({"national_id": pkmn_id})
+	if pkmn:
+		# check if there's space on party
+		party = users_db[user]["party"].find({})
+		if party.count() < 6:
+			# remove from storage
+			users_db[user]["storage"].delete_one(pkmn)
+			# add to party
+			users_db[user]["party"].insert_one(pkmn)
+			return True
+		else:
+			return False
+	return False
 
-	# remove from storage
 
-	# add to party
+def remove_from_party(user, pkmn_id):
+	# check if exists on party
+	pkmn = users_db[user]["party"].find_one({"national_id": pkmn_id})
+	if pkmn:
+		# remove from storage
+		users_db[user]["party"].delete_one(pkmn)
+		# add to party
+		users_db[user]["storage"].insert_one(pkmn)
+		return True
+	return False
+
+	
