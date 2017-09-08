@@ -1,3 +1,9 @@
+######################################################
+#	Pokemaster Discord Bot
+#	Developer: Mark Spencer Tan
+#	Version: 01.00.00
+######################################################
+
 from discord.ext.commands import Bot
 from discord import Client
 from discord.ext.commands.cooldowns import BucketType
@@ -5,6 +11,9 @@ from discord.embeds import Embed
 from random import randint
 import discord.ext.commands as commands
 import threading
+
+import sys
+sys.path.append(".")
 
 import database
 import settings
@@ -14,15 +23,17 @@ import tiers
 
 pokemaster_bot = Bot(command_prefix="!")
 
-
 @pokemaster_bot.event
 async def on_command_error(ctx, error):
-	user = str(error.message.author).split("#")[0]
-	message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
-	await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
+	try:
+		user = str(error.message.author).split("#")[0]
+		message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
+		await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
+	except:
+		print(error.__str__)
 
 
-@commands.cooldown(1, 15, type=BucketType.user)
+@commands.cooldown(1, 20, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
 async def poke(ctx, *args):
 	message = ctx.message
@@ -65,7 +76,7 @@ async def party(ctx, *args):
 	pkmn_id = None
 	result = True
 	for arg in args:
-		if arg in ('add', 'remove'):
+		if arg in ('add', 'remove', 'release'):
 			operation = arg
 		elif int(arg) in list(range(721)):
 			pkmn_id = int(arg)
@@ -73,11 +84,27 @@ async def party(ctx, *args):
 		result = database.add_to_party(author, pkmn_id)
 	if operation == 'remove':
 		result = database.remove_from_party(author, pkmn_id)
-
+	if operation == 'release':
+		result == database.release_from_party(author, pkmn_id)
+		await pokemaster_bot.say("Oak: Don't worry I'll take care of {} ;)".format(database.get_pokemon_name(pkmn_id)))
 	if not result:
 		return await pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
 
 	return await show_party(author)
+
+
+@commands.cooldown(1, 5, type=BucketType.user)
+@pokemaster_bot.command(pass_context=True)
+async def pokedex(ctx, *args):
+	if len(args) > 0:
+		# gets the pokedex entry if passed a pokemon id
+		return await get_pokedex(ctx.message.author, args[0])
+	else:
+		# gets the total number of unique pokemon caught
+		author = str(ctx.message.author).split("#")[0]
+		total_caught = database.get_total_caught(ctx.message.author)
+		message = "Oak: Congratulations **{}**, you caught {}/718 pokemon"
+		return await pokemaster_bot.say(message.format(author, total_caught))
 
 
 async def get_members():
@@ -93,23 +120,8 @@ async def catch(message):
 	pkmn_id = pkmn["national_id"]
 	pkmn_name = pkmn["name"]
 
-	# appends an emoji that matches the type
-	type_str = ""
-	types = pkmn['types']
-	for type in types:
-		type_str += "{} {} ".format(emojis.get_emoji(type['name']), type['name'])
-
-	# color the border by rarity tier
-	if pkmn_id in tiers.TIERS["0"]:
-		color = 0x000000
-	elif pkmn_id in tiers.TIERS["1"]:
-		color = 0xB80800
-	elif pkmn_id in tiers.TIERS["2"]:
-		color = 0x0009C4
-	elif pkmn_id in tiers.TIERS["3"]:
-		color = 0xF7AB09
-	else:
-		color = 0x9909F7
+	color = _get_tier_color(pkmn_id)
+	type_str = _get_types_string(pkmn["types"])
 
 	# random generator if shiny
 	shiny_chance = randint(1,100)
@@ -129,10 +141,10 @@ async def catch(message):
 
 	embed.add_field(name='Name', value="{}[{}]".format(pkmn_name, pkmn_id))
 	embed.add_field(name="Types", value=type_str)
-	embed.add_field(name='Hp', value=pkmn["hp"])
-	embed.add_field(name='Attack', value=pkmn["attack"])
-	embed.add_field(name='Defense', value=pkmn["defense"])
-	embed.add_field(name='Speed', value=pkmn["speed"])
+	# embed.add_field(name='Hp', value=pkmn["hp"])
+	# embed.add_field(name='Attack', value=pkmn["attack"])
+	# embed.add_field(name='Defense', value=pkmn["defense"])
+	# embed.add_field(name='Speed', value=pkmn["speed"])
 	embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(pkmn_id))
 
 	# add the pokemon to the user db
@@ -228,8 +240,69 @@ async def show_party(author):
 	party_list = database.get_party(author)
 	for pkmn in party_list:
 		pkmn_string = "Hp:{}\t Candies:{}".format("100%" ,pkmn["candies"])
-		embed.add_field(name="**{}**[{}]".format(pkmn["name"], str(pkmn["national_id"])), value=pkmn_string, inline=True)
+		embed.add_field(name="**{}**[{}]".format(pkmn["name"], str(pkmn["national_id"])), value=pkmn_string, inline=True)	
 	await pokemaster_bot.say(embed=embed)
 
-# run the bot
-pokemaster_bot.run(settings.BOT_TOKEN)
+
+async def get_pokedex(author, pkmn_id):
+	embed = Embed(color=0xB80800, description="**{}**'s Party Pokemon".format(author))
+
+	if database.is_caught(author, pkmn_id):
+		pkmn = database.get_pokemon(pkmn_id)
+		pkmn_id = pkmn["national_id"]
+		pkmn_name = pkmn["name"]
+
+		color = _get_tier_color(pkmn_id)
+		types = _get_types_string(pkmn["types"])
+
+		description = database.get_random_description(pkmn["descriptions"])
+
+		embed.add_field(name='Name', value="{} [{}]".format(pkmn_name, pkmn_id))
+		embed.add_field(name="Types", value=types, inline=True)
+		embed.add_field(name='Description', value=description, inline=False)
+		embed.add_field(name='Hp', value=pkmn["hp"], inline=True)
+		embed.add_field(name='Attack', value=pkmn["attack"], inline=True)
+		embed.add_field(name='Defense', value=pkmn["defense"], inline=True)
+		embed.add_field(name='Speed', value=pkmn["speed"], inline=True)
+		embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(pkmn_name.lower()))
+		embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(pkmn_id))
+		return await pokemaster_bot.say(embed=embed)
+	else:
+		return await pokemaster_bot.say("Oak: You can't see what you don't have.")
+
+
+def _get_types_string(types_list):
+	"""
+	Returns a string formatted with the emojis corresponding to the pokemon types
+	"""
+	type_str = ""
+	for type in types_list:
+		type_str += "{} {} ".format(emojis.get_emoji(type['name']), type['name'])
+	return type_str
+
+
+def _get_tier_color(pkmn_id):
+	"""
+	Returns the color code of the tier that the pokemon belongs in
+	"""
+	if pkmn_id in tiers.TIERS["0"]:
+		return 0x000000
+	elif pkmn_id in tiers.TIERS["1"]:
+		return 0xB80800
+	elif pkmn_id in tiers.TIERS["2"]:
+		return 0x0009C4
+	elif pkmn_id in tiers.TIERS["3"]:
+		return 0xF7AB09
+	else:
+		return 0x9909F7
+
+
+# run the bot forever
+while True:
+	try:
+		pokemaster_bot.run(settings.BOT_TOKEN)
+	except KeyboardInterrupt:
+		print('Closing Bot')
+		break
+	except:
+		pass
