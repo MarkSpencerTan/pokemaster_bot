@@ -6,6 +6,7 @@ from pprint import pprint
 from random import randint
 from numpy.random import choice
 import tiers
+import effectiveness
 
 client = pymongo.MongoClient(settings.MONGO_URI)
 
@@ -42,7 +43,6 @@ def get_pokemon(id):
         print("calling api")
         pkmn = api_get('pokemon', id)
         pokemon_db.insert_one(pkmn)
-    print(pkmn['name'])
     return pkmn
 
 
@@ -85,7 +85,7 @@ def add_pokemon(user, pokemon, shiny=False):
     users_db[user]["storage"].insert_one({
         "national_id": pokemon["national_id"],
         "name": pokemon["name"],
-        "health": 100,
+        "health": pokemon["hp"],
         "hp": pokemon["hp"],
         "attack": pokemon["attack"],
         "defense": pokemon["defense"],
@@ -108,17 +108,19 @@ def get_storage(user):
     storage = users_db[user]["storage"].find({})
     pkmn_list = []
     for pkmn in storage:
+        icons = ""
+        if pkmn["health"] <= 0:
+            icons += ":skull:"
         if "shiny" in pkmn.keys() and pkmn["shiny"]:
-            pkmn_list.append({"name": "✪" + pkmn["name"], "id":pkmn["national_id"]})
-        else:
-            pkmn_list.append({"name": pkmn["name"], "id":pkmn["national_id"]})
+            icons += "✪"
+        pkmn_list.append({"name": icons + pkmn["name"], "id":pkmn["national_id"]})
     return pkmn_list
 
 
-def get_party(user):
+def get_party(user) -> list:
     """
     Retrieves a list of pokemon dicts from a user's party
-    [{"name": "pikachu", "id": 99} ... ] 
+    [{"name": "pikachu", "nationa_id": 99} ... ]
     """
     return users_db[user]["party"].find({})
 
@@ -152,6 +154,12 @@ def remove_from_party(user, pkmn_id):
     return False
 
 
+def remove_all_party(user):
+    for pkmn in get_party(user):
+        remove_from_party(user, pkmn["national_id"])
+    return True
+
+
 def release_from_party(user, pkmn_id):
     # check if exists on party
     pkmn = users_db[user]["party"].find_one({"national_id": pkmn_id})
@@ -160,6 +168,24 @@ def release_from_party(user, pkmn_id):
         users_db[user]["party"].delete_one(pkmn)
         return True
     return False
+
+
+def save_party_pkmn_state(user, pkmn):
+    """
+    Saves the state of the party pokemon to the database
+    """
+    users_db[user]["party"].update({'_id': pkmn["_id"]}, {"$set": pkmn}, upsert=False)
+    return True
+
+
+def heal_party(user):
+    """
+    Restores all the HP of party pokemon back to full
+    """
+    party = get_party(user)
+    for pkmn in party:
+        pkmn["health"] = pkmn["hp"]
+        users_db[user]["party"].update({'_id': pkmn["_id"]}, {"$set": pkmn}, upsert=False)
 
 
 def is_caught(user, pkmn_id):
@@ -180,5 +206,32 @@ def get_total_caught(user):
     unique_party = users_db[user]["party"].distinct("national_id")
     unique_caught = unique_party + list(set(unique_storage) - set(unique_party))
     return len(unique_caught)
+
+
+def get_pokedollars(user):
+    query = users_db[user].find_one({"pokedollars": {'$exists': True}})
+    if query is None:
+        users_db[user].insert_one({
+            "pokedollars": 0
+        })
+        return 0
+    else:
+        return query["pokedollars"]
+
+
+def add_pokedollars(user, amount):
+    query = users_db[user].find_one({"pokedollars": {'$exists': True}})
+    if query is None:
+        users_db[user].insert_one({
+            "pokedollars": amount
+        })
+        return True
+    else:
+        if query["pokedollars"] <= 0:
+            query["pokedollars"] = 0
+        else:
+            query["pokedollars"] = query["pokedollars"] + amount
+        users_db[user].update({'_id': query["_id"]}, {"$set": query}, upsert=False)
+        return True
 
 

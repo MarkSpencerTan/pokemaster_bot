@@ -5,13 +5,14 @@
 ######################################################
 
 from discord.ext.commands import Bot
-from discord import Client
 from discord.ext.commands.cooldowns import BucketType
 from discord.embeds import Embed
 from random import randint
 import discord.ext.commands as commands
+from pprint import pprint
 import threading
 import traceback
+import random
 
 import sys
 sys.path.append(".")
@@ -19,7 +20,8 @@ sys.path.append(".")
 import database
 import settings
 import emojis
-import tiers    
+import tiers
+import effectiveness
 
 
 pokemaster_bot = Bot(command_prefix="!")
@@ -78,16 +80,18 @@ async def party(ctx, *args):
     pkmn_id = None
     result = True
     for arg in args:
-        if arg in ('add', 'remove', 'release'):
+        if arg in ('add', 'remove', 'release', 'removeall'):
             operation = arg
         elif int(arg) in list(range(721)):
             pkmn_id = int(arg)
     if operation == 'add':
         result = database.add_to_party(author, pkmn_id)
-    if operation == 'remove':
+    elif operation == 'remove':
         result = database.remove_from_party(author, pkmn_id)
-    if operation == 'release':
-        result == database.release_from_party(author, pkmn_id)
+    elif operation == 'removeall':
+        result = database.remove_all_party(author)
+    elif operation == 'release':
+        result = database.release_from_party(author, pkmn_id)
         await pokemaster_bot.say("Oak: Don't worry I'll take care of {} ;)".format(database.get_pokemon_name(pkmn_id)))
     if not result:
         return await pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
@@ -103,10 +107,23 @@ async def pokedex(ctx, *args):
         return await get_pokedex(ctx.message.author, args[0])
     else:
         # gets the total number of unique pokemon caught
-        author = str(ctx.message.author).split("#")[0]
-        total_caught = database.get_total_caught(ctx.message.author)
-        message = "Oak: Congratulations **{}**, you caught {}/718 pokemon"
-        return await pokemaster_bot.say(message.format(author, total_caught))
+        return await get_trainer_info(ctx.message.author)
+
+
+@commands.cooldown(1, 150, type=BucketType.user)
+@pokemaster_bot.command(pass_context=True)
+async def pokecenter(ctx, *args):
+    author = ctx.message.author
+    database.add_pokedollars(author, -150)
+    database.heal_party(author)
+
+    embed = Embed(color=0xB80800, description="**{}** Welcome to the Pokemon Center!".format(author))
+    embed.set_author(name="Nurse Joy", icon_url="https://i.pinimg.com/originals/ed/47/7c/ed477c99f4776886de48d5789f25776d.jpg")
+    embed.add_field(name="Your Pokemon are healed!", value="Thanks for coming in. Please Come again ;)", inline=False)
+    embed.set_footer(text="Nurse Joy charged you ₱150 for her services. She ain't messin with no broke broke.")
+    embed.set_image(url="https://cdn.bulbagarden.net/upload/thumb/9/9f/Nurse_Joy_anime_SM.png/250px-Nurse_Joy_anime_SM.png")
+    return await pokemaster_bot.say(embed=embed)
+
 
 
 async def get_members():
@@ -143,10 +160,6 @@ async def catch(message):
 
     embed.add_field(name='Name', value="{}[{}]".format(pkmn_name, pkmn_id))
     embed.add_field(name="Types", value=type_str)
-    # embed.add_field(name='Hp', value=pkmn["hp"])
-    # embed.add_field(name='Attack', value=pkmn["attack"])
-    # embed.add_field(name='Defense', value=pkmn["defense"])
-    # embed.add_field(name='Speed', value=pkmn["speed"])
     embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(pkmn_id))
 
     # add the pokemon to the user db
@@ -156,26 +169,120 @@ async def catch(message):
 
 async def battle(message):
     author = message.author
-    pkmn = database.get_random_pokemon(type="battle")
-    pkmn_id = pkmn["national_id"]
-    tier = _get_tier(int(pkmn_id))
-    pkmn_name = pkmn["name"]
+    wild_pkmn = database.get_random_pokemon(type="battle")
+    wild_pkmn_id = wild_pkmn["national_id"]
+    wild_pkmn["health"] = wild_pkmn["hp"]
+    wild_pkmn_name = wild_pkmn["name"]
+    tier = _get_tier(int(wild_pkmn_id))
+    prize_money = _get_money_earned(tier)
 
     party = database.get_party(author)
-    # for my_pkmn in party:
-    #     result = _damage_calc(author, my_pkmn, pkmn)
-    #     result = trainer_damage_calc(author1, pkmn1, author2, pkmn2)
-    
+    fainted = []
+    winner = None
+    fought_pkmn = []
+    for my_pkmn in party:
+        if my_pkmn["health"] <= 0:
+            last_pkmn = my_pkmn
+            continue
+        wild_pkmn["health"] = _fight_wild(author, my_pkmn, wild_pkmn)
+        fought_pkmn.append(my_pkmn)
+        if wild_pkmn["health"] <= 0:
+            winner = my_pkmn
+            last_pkmn = my_pkmn
+            break
+        else:
+            fainted.append(my_pkmn["name"])
+    if len(fought_pkmn) == 0:
+        return await pokemaster_bot.say("Oak: Are you trying to fight the pokemon with your fist? Add some pokemon to your party first.")
 
-def _dmg_calc(author, pkmn, enemy):
+    color = _get_tier_color(wild_pkmn_id)
+    embed = Embed(color=color, description="**{}** you encountered **{}**".format(message.author, wild_pkmn_name))
+    embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(last_pkmn["national_id"]))
+    # embed.add_field(name="Fainted Pokemon", value=", ".join(fainted))
+    embed.set_image(
+        url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(wild_pkmn_name.lower()))
+
+    if winner is None:
+        # do losing message here
+        embed.add_field(name="Oak", value="Your party pokemon was wiped out. Get rekt m8")
+        # deduct money
+        database.add_pokedollars(author, prize_money * -1)
+    else:
+        # do winning embed here
+        winner_name = winner["name"]
+        health_remaining = int((winner["health"]/winner["hp"]) * 100)
+        text1 = "has {}% health remaining after the fight".format(health_remaining)
+        embed.add_field(name="{} won the fight!".format(winner_name), value=text1, inline=False)
+        embed.add_field(name="Pokedollars Earned", value="₱{}".format(prize_money))
+        # add prize money
+        database.add_pokedollars(author, prize_money)
+    return await pokemaster_bot.say(embed=embed)
+
+
+
+def _fight_wild(author, pkmn, enemy):
     """
-    Damage calculation for a battle. saves the state of the pkmn to the
-    user's database.
-    :return: the pkmn object with its state after the battle
+    Your pkmn vs wild pkmn. saves the state of the user's pkmn to the
+    user's database at the end of the fight
+    :return: The remaining health of the enemy
     """
-    # have to get the full pkmn from the db
-    health = pkmn["health"]
-    my_stats = database.get_pokemon(pkmn["national_id"])
+    while True:
+        if pkmn["speed"] > enemy["speed"]:
+            # you go first
+            enemy["health"] = _attack(pkmn, enemy)
+            if enemy["health"] <= 0:
+                break
+            pkmn["health"] = _attack(enemy, pkmn)
+            if pkmn["health"] <= 0:
+                break
+        else:
+            # enemy goes first
+            pkmn["health"] = _attack(enemy, pkmn)
+            if pkmn["health"] <= 0:
+                break
+            enemy["health"] = _attack(pkmn, enemy)
+            if enemy["health"] <= 0:
+                break
+    # round the health to nearest int
+    pkmn["health"] = int(pkmn["health"])
+    database.save_party_pkmn_state(author, pkmn)
+    return enemy["health"]
+
+
+def _attack(pkmn1, pkmn2) -> int:
+    """
+    pkmn1 attacks pkmn2
+    :return: Return pkmn2's health after the battle
+    """
+    pkmn1_obj = database.get_pokemon(pkmn1["national_id"])
+    pkmn2_obj = database.get_pokemon(pkmn2["national_id"])
+
+    eff = _get_effectiveness(pkmn1_obj["types"], pkmn2_obj["types"])
+    r = random.uniform(0.8, 1.2)
+    power = (pkmn1["attack"] + pkmn1["sp_atk"])/2 * eff * 30
+    power /= (pkmn2["defense"] + pkmn2["sp_def"])/2
+    # print("effectiveness: %s rand: %s power: %d" % (eff, r, power))
+    pkmn2["health"] -= power
+
+    if pkmn2["health"] <= 0:
+        return 0
+    return pkmn2["health"]
+
+
+def _get_effectiveness(types1: list, types2: list):
+    """
+    :param types1, types2 are list of {'name': 'poison', 'resource_uri': ...}
+    :return: ratio of effectiveness of types1 to types2
+    """
+    ratio = 1.0
+    for type1 in types1:
+        for type2 in types2:
+            try:
+                ratio = ratio * effectiveness.chart[type1["name"]][type2["name"]]
+            except KeyError:
+                continue
+    return ratio
+
 
 async def show_storage(message, is_sorted=False, box=1):
     embed = Embed(color=0x000000, description="**{}**'s Pkmn at Professor Oak's Slavehouse".format(message.author))
@@ -301,20 +408,20 @@ async def show_party(author):
     
     party_list = database.get_party(author)
     for pkmn in party_list:
-        pkmn_string = "Hp:{}\t Candies:{}".format("100%" ,pkmn["candies"])
-        embed.add_field(name="**{}**[{}]".format(pkmn["name"], str(pkmn["national_id"])), value=pkmn_string, inline=True)   
+        pkmn_string = "Hp:[{}/{}]\t Candies:{}".format(pkmn["health"], pkmn["hp"], pkmn["candies"])
+        embed.add_field(name="**{}**[{}]".format(pkmn["name"], str(pkmn["national_id"])), value=pkmn_string, inline=False)
     await pokemaster_bot.say(embed=embed)
 
 
 async def get_pokedex(author, pkmn_id):
-    embed = Embed(color=0xB80800, description="**{}**'s Party Pokemon".format(author))
+    color = _get_tier_color(int(pkmn_id))
+    embed = Embed(color=color, description="**{}**'s Pokedex".format(author))
 
     if database.is_caught(author, pkmn_id):
         pkmn = database.get_pokemon(pkmn_id)
         pkmn_id = pkmn["national_id"]
         pkmn_name = pkmn["name"]
 
-        color = _get_tier_color(pkmn_id)
         types = _get_types_string(pkmn["types"])
 
         description = database.get_random_description(pkmn["descriptions"])
@@ -331,6 +438,21 @@ async def get_pokedex(author, pkmn_id):
         return await pokemaster_bot.say(embed=embed)
     else:
         return await pokemaster_bot.say("Oak: You can't see what you don't have.")
+
+
+async def get_trainer_info(author):
+    total_caught = database.get_total_caught(author)
+    total_caught = "{}/718".format(total_caught)
+    pokedollars = "₱{}".format(database.get_pokedollars(author))
+
+    embed = Embed(color=0xB80800)
+    embed.set_author(name="{}'s Trainer Profile".format(author),
+        icon_url="https://vignette3.wikia.nocookie.net/pkmnshuffle/images/b/b1/Pikachu_%28Winking%29.png/revision/latest?cb=20170410234514")
+    embed.add_field(name='Pokedex Entries', value=total_caught)
+    embed.add_field(name='Money', value=pokedollars)
+    embed.set_thumbnail(url="http://rs1240.pbsrc.com/albums/gg495/iKyle10/Pokemon%20Trainer/avatar514181_1_zpsfxp46su9.gif~c200")
+    embed.set_image(url="https://archives.bulbagarden.net/media/upload/a/a0/Spr_B2W2_Hilbert.png")
+    return await pokemaster_bot.say(embed=embed)
 
 
 def _get_types_string(types_list):
