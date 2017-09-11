@@ -1,7 +1,7 @@
 ######################################################
 #   Pokemaster Discord Bot
 #   Developer: Mark Spencer Tan
-#   Version: 01.00.00
+#   Version: 01.01.00
 ######################################################
 
 from discord.ext.commands import Bot
@@ -10,7 +10,6 @@ from discord.embeds import Embed
 from random import randint
 import discord.ext.commands as commands
 from pprint import pprint
-import threading
 import traceback
 import random
 
@@ -26,15 +25,16 @@ import effectiveness
 
 pokemaster_bot = Bot(command_prefix="!")
 
-@pokemaster_bot.event
-async def on_command_error(ctx, error):
-    try:
-        user = str(error.message.author).split("#")[0]
-        message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
-        await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
-    except:
-        tb = "\n".join(traceback.format_tb(error.original.__traceback__))
-        print("{}: {}\n{}".format(error.original.__class__.__name__, str(error), str(tb)))
+
+# @pokemaster_bot.event
+# async def on_command_error(ctx, error):
+#     try:
+#         user = str(error.message.author).split("#")[0]
+#         message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
+#         await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
+#     except:
+#         tb = "\n".join(traceback.format_tb(error.original.__traceback__))
+#         print("{}: {}\n{}".format(error.original.__class__.__name__, str(error), str(tb)))
 
 
 @commands.cooldown(1, 20, type=BucketType.user)
@@ -125,6 +125,13 @@ async def pokecenter(ctx, *args):
     return await pokemaster_bot.say(embed=embed)
 
 
+@commands.cooldown(1, 2, type=BucketType.user)
+@pokemaster_bot.command(pass_context=True)
+async def pokedollar(ctx, *args):
+    author = ctx.message.author
+    balance = database.get_pokedollars(author)
+    return await pokemaster_bot.say(":dollar: | **{} you have ₱{}**".format(author, balance))
+
 
 async def get_members():
     members = pokemaster_bot.get_all_members()
@@ -138,6 +145,7 @@ async def catch(message):
     pkmn = database.get_random_pokemon()
     pkmn_id = pkmn["national_id"]
     pkmn_name = pkmn["name"]
+    pkmn_name_stripped = pkmn_name.lower().split("-")[0]
 
     color = _get_tier_color(pkmn_id)
     type_str = _get_types_string(pkmn["types"])
@@ -154,9 +162,9 @@ async def catch(message):
     embed = Embed(color=color, description=description)
 
     if shiny:
-        embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados-shiny/{}.gif".format(pkmn_name.lower()))
+        embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados-shiny/{}.gif".format(pkmn_name_stripped))
     else:
-        embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(pkmn_name.lower()))
+        embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(pkmn_name_stripped))
 
     embed.add_field(name='Name', value="{}[{}]".format(pkmn_name, pkmn_id))
     embed.add_field(name="Types", value=type_str)
@@ -173,6 +181,8 @@ async def battle(message):
     wild_pkmn_id = wild_pkmn["national_id"]
     wild_pkmn["health"] = wild_pkmn["hp"]
     wild_pkmn_name = wild_pkmn["name"]
+    wild_pkmn_name_stripped = wild_pkmn_name.lower().split("-")[0]
+
     tier = _get_tier(int(wild_pkmn_id))
     prize_money = _get_money_earned(tier)
 
@@ -186,6 +196,7 @@ async def battle(message):
             continue
         wild_pkmn["health"] = _fight_wild(author, my_pkmn, wild_pkmn)
         fought_pkmn.append(my_pkmn)
+        last_pkmn = my_pkmn
         if wild_pkmn["health"] <= 0:
             winner = my_pkmn
             last_pkmn = my_pkmn
@@ -196,7 +207,7 @@ async def battle(message):
         return await pokemaster_bot.say("Oak: Are you trying to fight the pokemon with your fist? Add some pokemon to your party first.")
 
     color = _get_tier_color(wild_pkmn_id)
-    embed = Embed(color=color, description="**{}** you encountered **{}**".format(message.author, wild_pkmn_name))
+    embed = Embed(color=color, description="**{}** you encountered **{}**".format(message.author, wild_pkmn_name_stripped))
     embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(last_pkmn["national_id"]))
     # embed.add_field(name="Fainted Pokemon", value=", ".join(fainted))
     embed.set_image(
@@ -421,6 +432,7 @@ async def get_pokedex(author, pkmn_id):
         pkmn = database.get_pokemon(pkmn_id)
         pkmn_id = pkmn["national_id"]
         pkmn_name = pkmn["name"]
+        pkmn_name_stripped = pkmn_name.lower().split("-")[0]
 
         types = _get_types_string(pkmn["types"])
 
@@ -433,7 +445,7 @@ async def get_pokedex(author, pkmn_id):
         embed.add_field(name='Attack', value=pkmn["attack"], inline=True)
         embed.add_field(name='Defense', value=pkmn["defense"], inline=True)
         embed.add_field(name='Speed', value=pkmn["speed"], inline=True)
-        embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(pkmn_name.lower()))
+        embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(pkmn_name_stripped))
         embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(pkmn_id))
         return await pokemaster_bot.say(embed=embed)
     else:

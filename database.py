@@ -133,7 +133,7 @@ def add_to_party(user, pkmn_id):
         party = users_db[user]["party"].find({})
         if party.count() < 6:
             # remove from storage
-            users_db[user]["storage"].delete_one(pkmn)
+            users_db[user]["storage"].delete_one({'_id': pkmn['_id']})
             # add to party
             users_db[user]["party"].insert_one(pkmn)
             return True
@@ -147,7 +147,7 @@ def remove_from_party(user, pkmn_id):
     pkmn = users_db[user]["party"].find_one({"national_id": pkmn_id})
     if pkmn:
         # remove from storage
-        users_db[user]["party"].delete_one(pkmn)
+        users_db[user]["party"].delete_one({'_id': pkmn['_id']})
         # add to party
         users_db[user]["storage"].insert_one(pkmn)
         return True
@@ -164,8 +164,8 @@ def release_from_party(user, pkmn_id):
     # check if exists on party
     pkmn = users_db[user]["party"].find_one({"national_id": pkmn_id})
     if pkmn is not None:
-        # remove from storage
-        users_db[user]["party"].delete_one(pkmn)
+        # remove from party
+        users_db[user]["party"].delete_one({'_id': pkmn['_id']})
         return True
     return False
 
@@ -227,10 +227,9 @@ def add_pokedollars(user, amount):
         })
         return True
     else:
-        if query["pokedollars"] <= 0:
+        query["pokedollars"] += amount
+        if query["pokedollars"] < 0:
             query["pokedollars"] = 0
-        else:
-            query["pokedollars"] = query["pokedollars"] + amount
         users_db[user].update({'_id': query["_id"]}, {"$set": query}, upsert=False)
         return True
 
