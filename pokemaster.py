@@ -9,6 +9,7 @@ from discord.ext.commands.cooldowns import BucketType
 from discord.embeds import Embed
 from random import randint
 import discord.ext.commands as commands
+from discord import Game
 from pprint import pprint
 import traceback
 import random
@@ -24,36 +25,91 @@ import effectiveness
 
 
 pokemaster_bot = Bot(command_prefix="!")
+battles = {}
 
-
-# @pokemaster_bot.event
-# async def on_command_error(ctx, error):
-#     try:
-#         user = str(error.message.author).split("#")[0]
-#         message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
-#         await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
-#     except:
-#         tb = "\n".join(traceback.format_tb(error.original.__traceback__))
-#         print("{}: {}\n{}".format(error.original.__class__.__name__, str(error), str(tb)))
+@pokemaster_bot.event
+async def on_command_error(ctx, error):
+    try:
+        user = str(error.message.author).split("#")[0]
+        message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
+        await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
+    except:
+        tb = "\n".join(traceback.format_tb(error.original.__traceback__))
+        print("{}: {}\n{}".format(error.original.__class__.__name__, str(error), str(tb)))
 
 
 @commands.cooldown(1, 20, type=BucketType.user)
+@pokemaster_bot.group(pass_context=True)
+async def poke(ctx):
+    """
+    Commands related to interacting with wild pokemon.
+    """
+    await pokemaster_bot.change_presence(game=Game(name='!help for command info'))
+    if ctx.invoked_subcommand is None:
+        await pokemaster_bot.say("Invalid Command")
+
+
+@poke.command(pass_context=True)
+async def catch(ctx):
+    """
+    - Catches a wild pokemon.
+
+    Pokemon Rarity
+    Black = Common
+    Red = Uncommon
+    Blue = Rare
+    Gold = Ultra
+    Purple = Legendary
+    """
+    return await catch(ctx.message)
+
+
+@poke.command(pass_context=True)
+async def battle(ctx):
+    """
+    - Battles a wild pokemon and earns you money based on it's rarity.
+    """
+    return await battle(ctx.message)
+
+
+@commands.cooldown(1, 4, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
-async def poke(ctx, *args):
-    message = ctx.message
-    command = args[0]
-    if command == 'battle':
-        return await battle(message)
-    elif command == 'members':
-        return await get_members()
-    elif command == 'catch':
-        return await catch(message)
-    await pokemaster_bot.say("Invalid Command")
+async def battle(ctx, enemy, bet: int):
+    """
+    Battle another opponent with your party pokemon.
+
+    You challenge another trainer with the @username shortcut.
+    The initiator's bet will be the one that is used for the battle.
+
+    To accept someone's battle request, send a battle request back to them.
+    """
+    author = ctx.message.author
+    enemy = str(ctx.message.mentions[0])
+    for member in get_members():
+        if str(enemy) in str(member):
+            enemy = member
+    return await battle_trainer(str(author), enemy, bet)
 
 
 @commands.cooldown(1, 4, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
 async def storage(ctx, *args):
+    """
+    Shows your pokemon storage box.
+
+    Switch boxes with
+    !storage <box#>
+
+    Sort by rarity
+    !storage <rarity>
+        - rarities: 'common', 'rare', 'uncommon', 'ultra', 'legendary'
+
+    Sort by alphabetical order in the box
+    !storage sorted
+
+    View your eevee collection
+    !storage eevee
+    """
     message = ctx.message
     box = 1
     rarity = None
@@ -63,7 +119,7 @@ async def storage(ctx, *args):
             rarity = arg
         elif arg == 'sorted':
             sorted = True
-        elif int(arg) in list(range(9999)):
+        elif arg.isdigit():
             box = int(arg)
     if rarity == 'eevee':
         return await show_eevees(message, box=box, is_sorted=sorted)
@@ -73,46 +129,98 @@ async def storage(ctx, *args):
 
 
 @commands.cooldown(1, 2, type=BucketType.user)
-@pokemaster_bot.command(pass_context=True)
-async def party(ctx, *args):
-    author = ctx.message.author
-    operation = None
-    pkmn_id = None
-    result = True
-    for arg in args:
-        if arg in ('add', 'remove', 'release', 'removeall'):
-            operation = arg
-        elif int(arg) in list(range(721)):
-            pkmn_id = int(arg)
-    if operation == 'add':
-        result = database.add_to_party(author, pkmn_id)
-    elif operation == 'remove':
-        result = database.remove_from_party(author, pkmn_id)
-    elif operation == 'removeall':
-        result = database.remove_all_party(author)
-    elif operation == 'release':
-        result = database.release_from_party(author, pkmn_id)
-        await pokemaster_bot.say("Oak: Don't worry I'll take care of {} ;)".format(database.get_pokemon_name(pkmn_id)))
-    if not result:
-        return await pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
+@pokemaster_bot.group(pass_context=True)
+async def party(ctx):
+    """
+    Shows the pokemon in your party
+    """
+    if ctx.invoked_subcommand is None:
+        return await show_party(ctx.message.author)
 
-    return await show_party(author)
+
+@commands.cooldown(1, 2, type=BucketType.user)
+@party.command(pass_context=True)
+async def add(ctx, pkmn_id: int):
+    """
+    Adds a pokemon from your storage to the party
+    """
+    res = database.add_to_party(ctx.message.author, pkmn_id)
+    if not res:
+        pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
+    return await show_party(ctx.message.author)
+
+
+@commands.cooldown(1, 2, type=BucketType.user)
+@party.command(pass_context=True)
+async def remove(ctx, pkmn_id: int):
+    """
+    Removes a pokemon from your party
+    """
+    res = database.remove_from_party(ctx.message.author, pkmn_id)
+    if not res:
+        pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
+    return await show_party(ctx.message.author)
+
+@commands.cooldown(1, 2, type=BucketType.user)
+@party.command(pass_context=True)
+async def removeall(ctx, pkmn_id: int):
+    """
+    Removes all your pokemon from the party
+    """
+    res = database.remove_all_party(ctx.message.author)
+    if not res:
+        pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
+    return await show_party(ctx.message.author)
+
+@commands.cooldown(1, 2, type=BucketType.user)
+@party.command(pass_context=True)
+async def release(ctx, pkmn_id: int):
+    """
+    Release a pokemon from your party for money.
+    Pokemon trafficking is a thing.
+    """
+    res = database.release_from_party(ctx.message.author, pkmn_id)
+    if res:
+        tier = _get_tier(int(pkmn_id))
+        money = int(_get_money_earned(tier)/3)
+        message = "Oak: Don't worry I'll take care of {} ;) \nHere's ₱{}, buy yourself something nice."\
+            .format(database.get_pokemon_name(pkmn_id), money)
+        database.add_pokedollars(ctx.message.author, money)
+    else:
+        message = "**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub."
+    await pokemaster_bot.say(message)
 
 
 @commands.cooldown(1, 5, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
-async def pokedex(ctx, *args):
-    if len(args) > 0:
-        # gets the pokedex entry if passed a pokemon id
-        return await get_pokedex(ctx.message.author, args[0])
+async def pokedex(ctx, pokemon_id: int):
+    """
+    Shows a pokemon in more detail.
+    You are only able to view pokemon you've already caught
+    """
+    return await get_pokedex(ctx.message.author, pokemon_id)
+
+
+@commands.cooldown(1, 5, type=BucketType.user)
+@pokemaster_bot.command(pass_context=True)
+async def trainer(ctx, trainer=None):
+    """
+    View information about a trainer in the server
+    """
+    # gets the total number of unique pokemon caught
+    if trainer:
+        trainer = str(ctx.message.mentions[0])
     else:
-        # gets the total number of unique pokemon caught
-        return await get_trainer_info(ctx.message.author)
+        trainer = ctx.message.author
+    return await get_trainer_info(trainer)
 
 
-@commands.cooldown(1, 150, type=BucketType.user)
+@commands.cooldown(1, 60, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
 async def pokecenter(ctx, *args):
+    """
+    Heals your whole party pokemon for ₱150
+    """
     author = ctx.message.author
     database.add_pokedollars(author, -150)
     database.heal_party(author)
@@ -128,17 +236,27 @@ async def pokecenter(ctx, *args):
 @commands.cooldown(1, 2, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
 async def pokedollar(ctx, *args):
+    """
+    Shows your current balance.
+    """
     author = ctx.message.author
     balance = database.get_pokedollars(author)
     return await pokemaster_bot.say(":dollar: | **{} you have ₱{}**".format(author, balance))
 
 
-async def get_members():
+def get_members():
     members = pokemaster_bot.get_all_members()
-    response = ""
+    member_list = []
     for member in members:
-        response += str(member) + "\n"
-    return await pokemaster_bot.say(response)
+        member_list.append(str(member))
+    return member_list
+
+
+def get_member(name):
+    members = pokemaster_bot.get_all_members()
+    for member in members:
+        if name in str(member):
+            return member
 
 
 async def catch(message):
@@ -230,6 +348,78 @@ async def battle(message):
     return await pokemaster_bot.say(embed=embed)
 
 
+async def battle_trainer(author, enemy, bet=None):
+    # check if have enough money for bet
+    if bet:
+        if database.get_pokedollars(author) < bet:
+            return await pokemaster_bot.say("Oak: You're too broke to bet that amount.")
+    # check battles if enemy already challenged you
+    if author in battles.keys() and enemy in battles[author].keys():
+        pass
+    elif enemy not in battles.keys():
+        battles[enemy] = {author: bet}
+        print(battles)
+        return await pokemaster_bot.say("waiting for %s's response" % enemy)
+    elif author not in battles[enemy].keys():
+        battles[enemy][author] = bet
+        print(battles)
+        return await pokemaster_bot.say("waiting for %s's response" % enemy)
+    # remove from your pending battles and start battle
+    bet = battles[author][enemy]
+    battles[author].pop(enemy)
+
+    party1 = database.get_party(author)
+    party2 = database.get_party(enemy)
+    fainted1 = []
+    fainted2 = []
+
+    pkmn1 = party1.pop()
+    pkmn2 = party2.pop()
+    while len(fainted1) < 6 and len(fainted2) < 6:
+        try:
+            # check if pokemon is not already fainted
+            while pkmn1["health"] <= 0:
+                fainted1.append(pkmn1)
+                pkmn1 = party1.pop()
+            while pkmn2["health"] <= 0:
+                fainted2.append(pkmn2)
+                pkmn2 = party2.pop()
+
+            result = _fight_trainer(author, enemy, pkmn1, pkmn2)
+            if result:
+                fainted2.append(pkmn2)
+                pkmn2 = party2.pop()
+            else:
+                fainted1.append(pkmn1)
+                pkmn1 = party1.pop()
+        except IndexError:
+            break
+
+    if len(fainted1) > len(fainted2):
+        winner = enemy
+        loser = author
+    elif len(fainted2) > len(fainted1):
+        winner = author
+        loser = enemy
+    else:
+        winner = None
+
+    color = 0xff0000
+    embed = Embed(color=color, description="**{}** VS **{}**".format(author, enemy))
+    embed.set_thumbnail(url="https://i0.wp.com/alphadigits.com/wp-content/uploads/2014/01/pokebuilder-icon.png?fit=300%2C300")
+    embed.set_image(url="https://archives.bulbagarden.net/media/upload/a/a0/Spr_B2W2_Hilbert.png")
+
+    if winner is None:
+        embed.add_field(name="Oak", value="The battle was a tie. How disappointing...")
+    else:
+        # do winning embed here
+        embed.add_field(name="Winner:".format(winner), value=winner, inline=False)
+        embed.add_field(name="Pokedollars Earned", value="₱{}".format(bet))
+        # add prize money
+        database.add_pokedollars(winner, bet)
+        database.add_pokedollars(loser, bet * -1)
+    return await pokemaster_bot.say(embed=embed)
+
 
 def _fight_wild(author, pkmn, enemy):
     """
@@ -258,6 +448,41 @@ def _fight_wild(author, pkmn, enemy):
     pkmn["health"] = int(pkmn["health"])
     database.save_party_pkmn_state(author, pkmn)
     return enemy["health"]
+
+
+def _fight_trainer(trainer1, trainer2, pkmn1, pkmn2) -> bool:
+    """
+    Your pkmn vs enemy trainer pkmn. saves the state of the user's pkmn to the
+    user's database at the end of the fight
+    :return: True if pkmn wins
+    """
+    win = False
+    while True:
+        if pkmn1["speed"] > pkmn2["speed"]:
+            # you go first
+            pkmn2["health"] = _attack(pkmn1, pkmn2)
+            if pkmn2["health"] <= 0:
+                win = True
+                break
+            pkmn1["health"] = _attack(pkmn2, pkmn1)
+            if pkmn1["health"] <= 0:
+                break
+        else:
+            # enemy goes first
+            pkmn1["health"] = _attack(pkmn2, pkmn1)
+            if pkmn1["health"] <= 0:
+                break
+            pkmn2["health"] = _attack(pkmn1, pkmn2)
+            if pkmn2["health"] <= 0:
+                win = True
+                break
+    # round the health to nearest int
+    pkmn1["health"] = int(pkmn1["health"])
+    pkmn2["health"] = int(pkmn2["health"])
+    database.save_party_pkmn_state(trainer1, pkmn1)
+    database.save_party_pkmn_state(trainer2, pkmn2)
+
+    return win
 
 
 def _attack(pkmn1, pkmn2) -> int:
@@ -364,7 +589,6 @@ async def show_eevees(message, is_sorted=True, box=1):
 async def show_storage_by_rarity(message, rarity, is_sorted=True, box=1):
     color = 0xB80800
     tier = ""
-    print("rarity: {}".format(rarity))
     if rarity == 'common':
         color = 0x000000
         tier = "0"
@@ -522,6 +746,6 @@ while True:
         pokemaster_bot.run(settings.BOT_TOKEN)
     except KeyboardInterrupt:
         print('Closing Bot')
-        break
+        exit(-1)
     except:
         pass

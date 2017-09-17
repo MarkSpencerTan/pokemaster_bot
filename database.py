@@ -122,7 +122,7 @@ def get_party(user) -> list:
     Retrieves a list of pokemon dicts from a user's party
     [{"name": "pikachu", "nationa_id": 99} ... ]
     """
-    return users_db[user]["party"].find({})
+    return list(users_db[user]["party"].find({}))
 
 
 def add_to_party(user, pkmn_id):
