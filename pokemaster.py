@@ -746,10 +746,10 @@ app = flask.Flask(__name__)
 @app.route("/")
 def index():
     while True:
-    try:
-        pokemaster_bot.run(settings.BOT_TOKEN)
-    except KeyboardInterrupt:
-        print('Closing Bot')
-        exit(-1)
-    except:
-        pass
+        try:
+            pokemaster_bot.run(settings.BOT_TOKEN)
+        except KeyboardInterrupt:
+            print('Closing Bot')
+            exit(-1)
+        except:
+            pass
