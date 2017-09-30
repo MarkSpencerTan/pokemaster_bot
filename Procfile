@@ -1,1 +1,1 @@
-worker: python pokemaster.py
+web: python pokemaster.py
