@@ -1,1 +1,1 @@
-worker: python pokemaster_bot.py
+worker: python pokemaster.py
