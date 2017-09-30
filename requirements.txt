@@ -2,5 +2,3 @@ discord.py
 requests
 pymongo
 numpy
-flask
-gunicorn
