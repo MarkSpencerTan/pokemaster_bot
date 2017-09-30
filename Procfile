@@ -1,1 +1,1 @@
-web: gunicorn pokemaster:app --log-file -
+worker: python pokemaster.py
