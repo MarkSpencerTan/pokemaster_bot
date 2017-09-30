@@ -13,7 +13,7 @@ from discord import Game
 from pprint import pprint
 import traceback
 import random
-
+import flask
 import sys
 sys.path.append(".")
 
@@ -741,7 +741,11 @@ def _get_money_earned(tier):
 
 
 # run the bot forever
-while True:
+app = flask.Flask(__name__)
+
+@app.route("/")
+def index():
+    while True:
     try:
         pokemaster_bot.run(settings.BOT_TOKEN)
     except KeyboardInterrupt:
