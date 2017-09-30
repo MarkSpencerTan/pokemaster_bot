@@ -3,3 +3,4 @@ requests
 pymongo
 numpy
 flask
+gunicorn
