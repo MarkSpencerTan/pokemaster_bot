@@ -1,6 +1,6 @@
 import requests
 
-r = requests.get("https://api.heroku.com/apps//config-vars").json()
+r = requests.get("https://api.heroku.com/apps/pokemasterbot/config-vars").json()
 
 CLIENT_ID = r["CLIENT_ID"]
 CLIENT_SECRET = r["CLIENT_SECRET"]
