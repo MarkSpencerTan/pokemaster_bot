@@ -14,6 +14,11 @@ from pprint import pprint
 import traceback
 import random
 import sys
+from PIL import Image
+from PIL import ImageFont
+from PIL import ImageDraw
+import tempfile
+import os
 sys.path.append(".")
 
 import database
@@ -22,20 +27,44 @@ import emojis
 import tiers
 import effectiveness
 
-
+bot_admin = "Marko Spencer#0713"
 pokemaster_bot = Bot(command_prefix="!")
 battles = {}
 
-@pokemaster_bot.event
-async def on_command_error(ctx, error):
-    try:
-        user = str(error.message.author).split("#")[0]
-        message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
-        await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
-    except:
-        tb = "\n".join(traceback.format_tb(error.original.__traceback__))
-        print("{}: {}\n{}".format(error.original.__class__.__name__, str(error), str(tb)))
 
+# @pokemaster_bot.event
+# async def on_command_error(ctx, error):
+#     try:
+#         user = str(error.message.author).split("#")[0]
+#         message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
+#         await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
+#     except:
+#         tb = "\n".join(traceback.format_tb(error.original.__traceback__))
+#         print("{}: {}\n{}".format(error.original.__class__.__name__, str(error), str(tb)))
+
+
+@commands.cooldown(1, 1, type=BucketType.user)
+@pokemaster_bot.group(pass_context=True)
+async def admin(ctx):
+    """
+    Commands for the bot admin
+    """
+    if ctx.invoked_subcommand is None:
+        await pokemaster_bot.say("Invalid Command")
+
+
+@admin.command(pass_context=True)
+async def deposit(ctx, money:int):
+    """
+    Puts money in account
+    """
+    author = ctx.message.author
+    if str(author) == bot_admin:
+        database.add_pokedollars(author, money)
+        await pokemaster_bot.say("funds deposited")
+    else:
+        await pokemaster_bot.say("You are not the bot admin. Go awai.")
+    
 
 @commands.cooldown(1, 20, type=BucketType.user)
 @pokemaster_bot.group(pass_context=True)
@@ -637,14 +666,59 @@ async def show_storage_by_rarity(message, rarity, is_sorted=True, box=1):
     return await pokemaster_bot.say(embed=embed)
 
 
-async def show_party(author):
-    embed = Embed(color=0xB80800, description="**{}**'s Party Pokemon".format(author))
-    
+async def show_party(author):    
     party_list = database.get_party(author)
+
+    party = Image.open("img/partyarea2.png")
+
+    x1 = 2
+    y1 = 35
+    x2 = 42
+    y2 = 65
+
+    # for text drawing
+    font = ImageFont.truetype("fonts/8bit.ttf", 12)
+    draw = ImageDraw.Draw(party)
+
+    draw.text((x1 + 10 , y1 - 25), str(author) + "'s Party", (255, 255, 255), font=font)
+
     for pkmn in party_list:
-        pkmn_string = "Hp:[{}/{}]\t Candies:{}".format(pkmn["health"], pkmn["hp"], pkmn["candies"])
-        embed.add_field(name="**{}**[{}]".format(pkmn["name"], str(pkmn["national_id"])), value=pkmn_string, inline=False)
-    await pokemaster_bot.say(embed=embed)
+        shiny = pkmn["shiny"]
+        health_ratio = float(float(pkmn["health"]) / float(pkmn["hp"]))
+        
+        area = (x1, y1, x2, y2)
+        name = pkmn["name"].upper()
+
+        # paste the pokemon image
+        if shiny:  
+            image = Image.open("img/pokemon/shiny/{}.png".format(name.lower()))
+        else:
+            image = Image.open("img/pokemon/regular/{}.png".format(name.lower().split("-")[0]))
+        party.paste(image, area, image)
+        
+        name = "[{}] {}".format(pkmn["national_id"], name)
+        # draw pokemon info
+        if shiny:
+            draw.text((x1 + 45, y1 + 5), name, (255,165,0), font=font)
+            draw.text((x1 + 45, y1 + 5), name, (255,165,0), font=font)
+        else:
+            draw.text((x1 + 45, y1 + 5), name, (0, 0, 0), font=font)
+        # draw health bars
+        draw.rectangle([x1+ 45, y1+ 20, x1 + 145, y1+ 30], fill=(0,0,0))
+        draw.rectangle([x1+ 45, y1+ 20, x1 + 45 + (health_ratio * 100), y1 + 30], fill=(34,139,34))
+        health_txt = "{}/{}".format(pkmn["health"], pkmn["hp"])
+        draw.text((x1 + 80, y1 + 20), health_txt, (255, 255, 255), font=font)
+        y1 += 37
+        y2 += 37
+
+    # create a temp file for the upload
+    file, filename = tempfile.mkstemp(".png")
+    # save the compiled image
+    party.save(filename)
+    print(filename)
+    # upload with bot
+    await pokemaster_bot.upload(filename)
+    os.close(file)
 
 
 async def get_pokedex(author, pkmn_id):
