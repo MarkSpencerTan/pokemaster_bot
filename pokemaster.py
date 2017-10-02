@@ -812,11 +812,12 @@ def _get_money_earned(tier):
 
 
 # run the bot forever
-while True:
-    try:
-        pokemaster_bot.run(settings.BOT_TOKEN)
-    except KeyboardInterrupt:
-        print('Closing Bot')
-        exit(-1)
-    except:
-        pass
+pokemaster_bot.run(settings.BOT_TOKEN)
+# while True:
+#     try:
+#         pokemaster_bot.run(settings.BOT_TOKEN)
+#     except KeyboardInterrupt:
+#         print('Closing Bot')
+#         exit(-1)
+#     except:
+#         pass
