@@ -703,7 +703,12 @@ async def show_party(author):
             draw.text((x1 + 45, y1 + 5), name, (0, 0, 0), font=font)
         # draw health bars
         draw.rectangle([x1+ 45, y1+ 20, x1 + 145, y1+ 30], fill=(0,0,0))
-        draw.rectangle([x1+ 45, y1+ 20, x1 + 45 + (health_ratio * 100), y1 + 30], fill=(34,139,34))
+        fill = (34,139,34)
+        if  25 <= health_ratio < 50:
+            fill = (255,140,0)
+        elif health_ratio < 25:
+            fill = (255, 0, 0) 
+        draw.rectangle([x1+ 45, y1+ 20, x1 + 45 + (health_ratio * 100), y1 + 30], fill=fill)
         health_txt = "{}/{}".format(pkmn["health"], pkmn["hp"])
         draw.text((x1 + 80, y1 + 20), health_txt, (255, 255, 255), font=font)
         y1 += 37
