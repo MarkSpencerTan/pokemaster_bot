@@ -27,10 +27,8 @@ import emojis
 import tiers
 import effectiveness
 
-bot_admin = "Marko Spencer#0713"
-pokemaster_bot = Bot(command_prefix="!")
+pokemaster_bot = Bot(command_prefix=settings.BOT_PREFIX)
 battles = {}
-
 
 # @pokemaster_bot.event
 # async def on_command_error(ctx, error):
@@ -59,7 +57,7 @@ async def deposit(ctx, money:int):
     Puts money in account
     """
     author = ctx.message.author
-    if str(author) == bot_admin:
+    if str(author) in settings.BOT_ADMIN:
         database.add_pokedollars(author, money)
         await pokemaster_bot.say("funds deposited")
     else:
