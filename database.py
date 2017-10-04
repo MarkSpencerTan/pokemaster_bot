@@ -106,15 +106,16 @@ def get_storage(user):
     [{"name": "pikachu", "id": 99} ... ] 
     """
     storage = users_db[user]["storage"].find({})
-    pkmn_list = []
-    for pkmn in storage:
-        icons = ""
-        if pkmn["health"] <= 0:
-            icons += ":skull:"
-        if "shiny" in pkmn.keys() and pkmn["shiny"]:
-            icons += "✪"
-        pkmn_list.append({"name": icons + pkmn["name"], "id":pkmn["national_id"]})
-    return pkmn_list
+    # pkmn_list = []
+    # for pkmn in storage:
+    #     icons = ""
+    #     if pkmn["health"] <= 0:
+    #         icons += ":skull:"
+    #     if "shiny" in pkmn.keys() and pkmn["shiny"]:
+    #         icons += "✪"
+    #     pkmn_list.append({"name": icons + pkmn["name"], "id":pkmn["national_id"]})
+    # return pkmn_list
+    return list(storage)
 
 
 def get_party(user) -> list:
