@@ -589,9 +589,9 @@ async def show_storage(author, is_sorted=False, box=1, category=None):
 
             # paste the pokemon image
             if shiny:
-                image = Image.open("img/pokemon/shiny/{}.png".format(name))
+                image = Image.open("img/pokemon/shiny/{}.png".format(pkmn["national_id"]))
             else:
-                image = Image.open("img/pokemon/regular/{}.png".format(name.split("-")[0]))
+                image = Image.open("img/pokemon/regular/{}.png".format(pkmn["national_id"]))
             storage.paste(image, area, image)
             
             id = "[{}]".format(pkmn["national_id"])
@@ -649,9 +649,9 @@ async def show_party(author):
 
         # paste the pokemon image
         if shiny:  
-            image = Image.open("img/pokemon/shiny/{}.png".format(name.lower()))
+            image = Image.open("img/pokemon/shiny/{}.png".format(pkmn["national_id"]))
         else:
-            image = Image.open("img/pokemon/regular/{}.png".format(name.lower().split("-")[0]))
+            image = Image.open("img/pokemon/regular/{}.png".format(pkmn["national_id"))
         party.paste(image, area, image)
         
         name = "[{}] {}".format(pkmn["national_id"], name)
