@@ -651,7 +651,7 @@ async def show_party(author):
         if shiny:  
             image = Image.open("img/pokemon/shiny/{}.png".format(pkmn["national_id"]))
         else:
-            image = Image.open("img/pokemon/regular/{}.png".format(pkmn["national_id"))
+            image = Image.open("img/pokemon/regular/{}.png".format(pkmn["national_id"]))
         party.paste(image, area, image)
         
         name = "[{}] {}".format(pkmn["national_id"], name)
