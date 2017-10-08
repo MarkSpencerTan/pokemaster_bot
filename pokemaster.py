@@ -31,15 +31,15 @@ import effectiveness
 pokemaster_bot = Bot(command_prefix=settings.BOT_PREFIX)
 battles = {}
 
-# @pokemaster_bot.event
-# async def on_command_error(ctx, error):
-#     try:
-#         user = str(error.message.author).split("#")[0]
-#         message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
-#         await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
-#     except:
-#         tb = "\n".join(traceback.format_tb(error.original.__traceback__))
-#         print("{}: {}\n{}".format(error.original.__class__.__name__, str(error), str(tb)))
+@pokemaster_bot.event
+async def on_command_error(ctx, error):
+    try:
+        user = str(error.message.author).split("#")[0]
+        message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
+        await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
+    except:
+        tb = "\n".join(traceback.format_tb(error.original.__traceback__))
+        print("{}: {}\n{}".format(error.original.__class__.__name__, str(error), str(tb)))
 
 
 @commands.cooldown(1, 1, type=BucketType.user)
