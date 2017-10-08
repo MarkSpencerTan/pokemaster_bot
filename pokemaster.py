@@ -19,6 +19,7 @@ from PIL import ImageFont
 from PIL import ImageDraw
 import tempfile
 import os
+import math
 sys.path.append(".")
 
 import database
@@ -136,7 +137,7 @@ async def storage(ctx, *args):
     View your eevee collection
     !storage eevee
     """
-    message = ctx.message
+    author = ctx.message.author
     box = 1
     rarity = None
     sorted = False
@@ -148,10 +149,10 @@ async def storage(ctx, *args):
         elif arg.isdigit():
             box = int(arg)
     if rarity == 'eevee':
-        return await show_storage(message, box=box, is_sorted=sorted, category="eevee")
+        return await show_storage(author, box=box, is_sorted=sorted, category="eevee")
     if rarity is not None:
-        return await show_storage(message, category=rarity, box=box, is_sorted=sorted)
-    return await show_storage(message, box=box, is_sorted=sorted)
+        return await show_storage(author, category=rarity, box=box, is_sorted=sorted)
+    return await show_storage(author, box=box, is_sorted=sorted)
 
 
 @commands.cooldown(1, 2, type=BucketType.user)
@@ -558,7 +559,7 @@ async def show_storage(author, is_sorted=False, box=1, category=None):
 
     storage_list = database.get_storage(author)
     if is_sorted:
-        newlist = sorted(storage_list, key=lambda p: p['name']) 
+        storage_list = sorted(storage_list, key=lambda p: p['name']) 
 
     if category is None:
         storage = Image.open("img/storage/common.png")
@@ -577,9 +578,10 @@ async def show_storage(author, is_sorted=False, box=1, category=None):
     current_box = 1
     pokemon_count = 0
     for i, pkmn in enumerate(storage_list):
-        if category is None or pkmn in categories[category]:
+        id = pkmn["national_id"]
+        if (category is None) or ( id in categories[category]):
             pokemon_count += 1
-        elif pkmn not in categories[category]:
+        elif id not in categories[category]:
             continue
         if current_box == box:
             shiny = pkmn["shiny"]
@@ -589,9 +591,9 @@ async def show_storage(author, is_sorted=False, box=1, category=None):
 
             # paste the pokemon image
             if shiny:
-                image = Image.open("img/pokemon/shiny/{}.png".format(pkmn["national_id"]))
+                image = Image.open("img/pokemon/shiny/{}.png".format(id))
             else:
-                image = Image.open("img/pokemon/regular/{}.png".format(pkmn["national_id"]))
+                image = Image.open("img/pokemon/regular/{}.png".format(id))
             storage.paste(image, area, image)
             
             id = "[{}]".format(pkmn["national_id"])
@@ -599,9 +601,7 @@ async def show_storage(author, is_sorted=False, box=1, category=None):
             draw.text((x1 + 11, y1 + 31), id, (0, 0, 0), font=font)
             draw.text((x1 + 10, y1 + 30), id, (255, 255, 255), font=font)
         
-            if pokemon_count % 29 == 0:
-                current_box += 1
-            elif (pokemon_count + 1) % 6 == 0:
+            if pokemon_count % 6 == 0:
                 # new row
                 y1 += 34
                 y2 += 34
@@ -610,8 +610,14 @@ async def show_storage(author, is_sorted=False, box=1, category=None):
             else:
                 x1 += 32
                 x2 += 32
+        if pokemon_count % 30 == 0:
+                current_box += 1
 
-    total_pages = int(pokemon_count / 30)
+    total_pages = math.ceil(pokemon_count / 30)
+    x1 = 0
+    y1 = 34
+    x2 = 40
+    y2 = 64
     draw.text((x1 + 31 , y1 - 9), str(author) + " - {}/{}".format(box, total_pages), (0, 0, 0), font=font)
     draw.text((x1 + 30 , y1 - 10), str(author) + " - {}/{}".format(box, total_pages), (255, 255, 255), font=font)
 
@@ -643,15 +649,15 @@ async def show_party(author):
     for pkmn in party_list:
         shiny = pkmn["shiny"]
         health_ratio = float(float(pkmn["health"]) / float(pkmn["hp"]))
-        
+        pkmn_id = pkmn["national_id"]
         area = (x1, y1, x2, y2)
         name = pkmn["name"].upper()
 
         # paste the pokemon image
         if shiny:  
-            image = Image.open("img/pokemon/shiny/{}.png".format(pkmn["national_id"]))
+            image = Image.open("img/pokemon/shiny/{}.png".format(pkmn_id))
         else:
-            image = Image.open("img/pokemon/regular/{}.png".format(pkmn["national_id"]))
+            image = Image.open("img/pokemon/regular/{}.png".format(pkmn_id))
         party.paste(image, area, image)
         
         name = "[{}] {}".format(pkmn["national_id"], name)
