@@ -594,6 +594,10 @@ async def show_storage(author, is_sorted=False, box=1, category=None):
                 image = Image.open("img/pokemon/shiny/{}.png".format(id))
             else:
                 image = Image.open("img/pokemon/regular/{}.png".format(id))
+
+            if pkmn["health"] == 0:
+                image = image.convert('LA')
+                
             storage.paste(image, area, image)
             
             id = "[{}]".format(pkmn["national_id"])
@@ -658,6 +662,9 @@ async def show_party(author):
             image = Image.open("img/pokemon/shiny/{}.png".format(pkmn_id))
         else:
             image = Image.open("img/pokemon/regular/{}.png".format(pkmn_id))
+        if health_ratio == 0:
+            image = image.convert('LA')
+
         party.paste(image, area, image)
         
         name = "[{}] {}".format(pkmn["national_id"], name)
