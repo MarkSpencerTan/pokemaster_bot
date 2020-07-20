@@ -9,7 +9,8 @@ from discord.ext.commands.cooldowns import BucketType
 from discord.embeds import Embed
 from random import randint
 import discord.ext.commands as commands
-from discord import Game
+from discord import Game, File, Client
+import discord
 from pprint import pprint
 import traceback
 import random
@@ -33,13 +34,14 @@ battles = {}
 
 @pokemaster_bot.event
 async def on_command_error(ctx, error):
-    try:
-        user = str(error.message.author).split("#")[0]
+    if isinstance(error, discord.ext.commands.CommandOnCooldown):
+        user = str(ctx.message.author).split("#")[0]
         message = "Oak: **{}** keep your pokeballs calm, and wait {} seconds."
-        await pokemaster_bot.send_message(error.message.channel, message.format(user, int(ctx.retry_after)))
-    except:
-        tb = "\n".join(traceback.format_tb(error.original.__traceback__))
-        print("{}: {}\n{}".format(error.original.__class__.__name__, str(error), str(tb)))
+        await ctx.send(message.format(user, int(error.retry_after)))
+    if isinstance(error, discord.ext.commands.errors.MissingRequiredArgument):
+        await ctx.send(str(error))
+    else:
+        raise error
 
 
 @commands.cooldown(1, 1, type=BucketType.user)
@@ -49,7 +51,7 @@ async def admin(ctx):
     Commands for the bot admin
     """
     if ctx.invoked_subcommand is None:
-        await pokemaster_bot.say("Invalid Command")
+        await ctx.send("Invalid Command")
 
 
 @admin.command(pass_context=True)
@@ -60,9 +62,9 @@ async def deposit(ctx, money:int):
     author = ctx.message.author
     if str(author) in settings.BOT_ADMIN:
         database.add_pokedollars(author, money)
-        await pokemaster_bot.say("funds deposited")
+        await ctx.send("funds deposited")
     else:
-        await pokemaster_bot.say("You are not the bot admin. Go awai.")
+        await ctx.send("You are not the bot admin. Go awai.")
     
 
 @commands.cooldown(1, 20, type=BucketType.user)
@@ -71,9 +73,9 @@ async def poke(ctx):
     """
     Commands related to interacting with wild pokemon.
     """
-    await pokemaster_bot.change_presence(game=Game(name='!help for command info'))
+    await pokemaster_bot.change_presence(activity=Game(name='!help for command info'))
     if ctx.invoked_subcommand is None:
-        await pokemaster_bot.say("Invalid Command")
+        await ctx.send("Invalid Command")
 
 
 @poke.command(pass_context=True)
@@ -88,7 +90,7 @@ async def catch(ctx):
     Gold = Ultra
     Purple = Legendary
     """
-    return await catch(ctx.message)
+    return await catch(ctx)
 
 
 @poke.command(pass_context=True)
@@ -96,7 +98,7 @@ async def battle(ctx):
     """
     - Battles a wild pokemon and earns you money based on it's rarity.
     """
-    return await battle(ctx.message)
+    return await battle(ctx)
 
 
 @commands.cooldown(1, 4, type=BucketType.user)
@@ -115,7 +117,7 @@ async def battle(ctx, enemy, bet: int):
     for member in get_members():
         if str(enemy) in str(member):
             enemy = member
-    return await battle_trainer(str(author), enemy, bet)
+    return await battle_trainer(ctx, str(author), enemy, bet)
 
 
 @commands.cooldown(1, 4, type=BucketType.user)
@@ -149,10 +151,10 @@ async def storage(ctx, *args):
         elif arg.isdigit():
             box = int(arg)
     if rarity == 'eevee':
-        return await show_storage(author, box=box, is_sorted=sorted, category="eevee")
+        return await show_storage(ctx, author, box=box, is_sorted=sorted, category="eevee")
     if rarity is not None:
-        return await show_storage(author, category=rarity, box=box, is_sorted=sorted)
-    return await show_storage(author, box=box, is_sorted=sorted)
+        return await show_storage(ctx, author, category=rarity, box=box, is_sorted=sorted)
+    return await show_storage(ctx, author, box=box, is_sorted=sorted)
 
 
 @commands.cooldown(1, 2, type=BucketType.user)
@@ -162,7 +164,7 @@ async def party(ctx):
     Shows the pokemon in your party
     """
     if ctx.invoked_subcommand is None:
-        return await show_party(ctx.message.author)
+        return await show_party(ctx)
 
 
 @commands.cooldown(1, 2, type=BucketType.user)
@@ -173,7 +175,7 @@ async def add(ctx, pkmn_id: int):
     """
     res = database.add_to_party(ctx.message.author, pkmn_id)
     if not res:
-        pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
+        ctx.send("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
     return await show_party(ctx.message.author)
 
 
@@ -185,7 +187,7 @@ async def remove(ctx, pkmn_id: int):
     """
     res = database.remove_from_party(ctx.message.author, pkmn_id)
     if not res:
-        pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
+        ctx.send("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
     return await show_party(ctx.message.author)
 
 @commands.cooldown(1, 2, type=BucketType.user)
@@ -196,7 +198,7 @@ async def removeall(ctx, pkmn_id: int):
     """
     res = database.remove_all_party(ctx.message.author)
     if not res:
-        pokemaster_bot.say("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
+        ctx.send("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
     return await show_party(ctx.message.author)
 
 @commands.cooldown(1, 2, type=BucketType.user)
@@ -215,7 +217,7 @@ async def release(ctx, pkmn_id: int):
         database.add_pokedollars(ctx.message.author, money)
     else:
         message = "**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub."
-    await pokemaster_bot.say(message)
+    await ctx.send(message)
 
 
 @commands.cooldown(1, 5, type=BucketType.user)
@@ -225,7 +227,7 @@ async def pokedex(ctx, pokemon_id: int):
     Shows a pokemon in more detail.
     You are only able to view pokemon you've already caught
     """
-    return await get_pokedex(ctx.message.author, pokemon_id)
+    return await get_pokedex(ctx, ctx.message.author, pokemon_id)
 
 
 @commands.cooldown(1, 5, type=BucketType.user)
@@ -239,7 +241,7 @@ async def trainer(ctx, trainer=None):
         trainer = str(ctx.message.mentions[0])
     else:
         trainer = ctx.message.author
-    return await get_trainer_info(trainer)
+    return await get_trainer_info(ctx, trainer)
 
 
 @commands.cooldown(1, 60, type=BucketType.user)
@@ -257,7 +259,7 @@ async def pokecenter(ctx, *args):
     embed.add_field(name="Your Pokemon are healed!", value="Thanks for coming in. Please Come again ;)", inline=False)
     embed.set_footer(text="Nurse Joy charged you ₱150 for her services. She ain't messin with no broke broke.")
     embed.set_image(url="https://cdn.bulbagarden.net/upload/thumb/9/9f/Nurse_Joy_anime_SM.png/250px-Nurse_Joy_anime_SM.png")
-    return await pokemaster_bot.say(embed=embed)
+    return await ctx.send(embed=embed)
 
 
 @commands.cooldown(1, 2, type=BucketType.user)
@@ -268,7 +270,7 @@ async def pokedollar(ctx, *args):
     """
     author = ctx.message.author
     balance = database.get_pokedollars(author)
-    return await pokemaster_bot.say(":dollar: | **{} you have ₱{}**".format(author, balance))
+    return await ctx.send(":dollar: | **{} you have ₱{}**".format(author, balance))
 
 
 def get_members():
@@ -286,7 +288,8 @@ def get_member(name):
             return member
 
 
-async def catch(message):
+async def catch(ctx):
+    message = ctx.message
     pkmn = database.get_random_pokemon()
     pkmn_id = pkmn["national_id"]
     pkmn_name = pkmn["name"]
@@ -317,10 +320,11 @@ async def catch(message):
 
     # add the pokemon to the user db
     database.add_pokemon(message.author, pkmn, shiny=shiny)
-    await pokemaster_bot.say(embed=embed)
+    await ctx.send(embed=embed)
 
 
-async def battle(message):
+async def battle(ctx):
+    message = ctx.message
     author = message.author
     wild_pkmn = database.get_random_pokemon(type="battle")
     wild_pkmn_id = wild_pkmn["national_id"]
@@ -349,7 +353,7 @@ async def battle(message):
         else:
             fainted.append(my_pkmn["name"])
     if len(fought_pkmn) == 0:
-        return await pokemaster_bot.say("Oak: Are you trying to fight the pokemon with your fist? Add some pokemon to your party first.")
+        return await ctx.send("Oak: Are you trying to fight the pokemon with your fist? Add some pokemon to your party first.")
 
     color = _get_tier_color(wild_pkmn_id)
     embed = Embed(color=color, description="**{}** you encountered **{}**".format(message.author, wild_pkmn_name_stripped))
@@ -372,25 +376,25 @@ async def battle(message):
         embed.add_field(name="Pokedollars Earned", value="₱{}".format(prize_money))
         # add prize money
         database.add_pokedollars(author, prize_money)
-    return await pokemaster_bot.say(embed=embed)
+    return await ctx.send(embed=embed)
 
 
-async def battle_trainer(author, enemy, bet=None):
+async def battle_trainer(ctx, author, enemy, bet=None):
     # check if have enough money for bet
     if bet:
         if database.get_pokedollars(author) < bet:
-            return await pokemaster_bot.say("Oak: You're too broke to bet that amount.")
+            return await ctx.send("Oak: You're too broke to bet that amount.")
     # check battles if enemy already challenged you
     if author in battles.keys() and enemy in battles[author].keys():
         pass
     elif enemy not in battles.keys():
         battles[enemy] = {author: bet}
         print(battles)
-        return await pokemaster_bot.say("waiting for %s's response" % enemy)
+        return await ctx.send("waiting for %s's response" % enemy)
     elif author not in battles[enemy].keys():
         battles[enemy][author] = bet
         print(battles)
-        return await pokemaster_bot.say("waiting for %s's response" % enemy)
+        return await ctx.send("waiting for %s's response" % enemy)
     # remove from your pending battles and start battle
     bet = battles[author][enemy]
     battles[author].pop(enemy)
@@ -445,7 +449,7 @@ async def battle_trainer(author, enemy, bet=None):
         # add prize money
         database.add_pokedollars(winner, bet)
         database.add_pokedollars(loser, bet * -1)
-    return await pokemaster_bot.say(embed=embed)
+    return await ctx.send(embed=embed)
 
 
 def _fight_wild(author, pkmn, enemy):
@@ -547,7 +551,8 @@ def _get_effectiveness(types1: list, types2: list):
     return ratio
 
 
-async def show_storage(author, is_sorted=False, box=1, category=None):
+async def show_storage(ctx, author, is_sorted=False, box=1, category=None):
+    channel = ctx.message.channel
     categories = {
         "common": [10, 11, 13, 14, 16, 17, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30, 32, 33, 39, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 60, 66, 67, 69, 70, 72, 73, 74, 75, 79, 80, 81, 82, 84, 85, 86, 87, 88, 90, 91, 92, 95, 96, 97, 98, 99, 100, 101, 102, 104, 109, 111, 114, 116, 118, 119, 120, 121, 129, 161, 162, 163, 164, 165, 167, 168, 170, 177, 179, 180, 183, 187, 188, 189, 191, 194, 195, 203, 206, 209, 216, 218, 220, 234, 261, 263, 264, 265, 266, 268, 270, 273, 274, 276, 278, 280, 283, 285, 287, 290, 293, 296, 300, 302, 303, 304, 307, 309, 311, 312, 313, 314, 315, 316, 318, 319, 320, 322, 324, 325, 327, 331, 339, 341, 353, 355, 366, 396, 399, 401, 403, 406, 412, 415, 417, 418, 420, 422, 425, 427, 431, 433, 434, 436, 449, 453, 456, 459, 504, 505, 506, 507, 509, 510, 519, 522, 524, 527, 529, 531, 532, 533, 535, 540, 541, 543, 546, 547, 548, 549, 550, 551, 557, 559, 560, 562, 568, 572, 573, 574, 575, 577, 578, 580, 581, 582, 583, 585, 587, 588, 590, 591, 592, 595, 596, 597, 598, 599, 600, 602, 605, 607, 618, 619, 629, 630, 659, 660, 661, 662, 664, 665, 667, 669, 670, 672,  674, 676, 677, 678, 679, 682, 684, 686, 687, 688, 690, 692, 694, 703],
         "uncommon": [12, 15, 18, 25, 35, 37, 40, 45, 58, 61, 63, 68, 76, 77, 89, 93, 103, 105, 106, 107, 108, 110, 112, 117, 166, 171, 178, 182, 184, 185, 186, 190, 192, 193, 198, 200, 202, 204, 207, 210, 211, 215, 217, 219, 221, 222, 223, 224, 227, 228, 231, 235, 236, 237, 238, 239, 240, 241, 262, 267, 269, 271, 275, 277, 279, 281, 284, 286, 288, 291, 294, 297, 298, 299, 301, 305, 308, 310, 317, 321, 323, 326, 328, 332, 335, 336, 337, 338, 340, 342, 343, 352, 354, 356, 357, 361, 363, 367, 368, 369, 370, 397, 400, 402, 404, 407, 408, 410, 413, 414, 416, 419, 421, 423, 426, 428, 432, 435, 437, 441, 446, 447, 450, 451, 454, 455, 457, 460, 508, 511, 512, 513, 514, 515, 516, 517, 520, 521, 523, 525, 528, 530, 534, 536, 538, 539, 542, 544, 552, 554, 556, 558, 561, 563, 564, 566, 569, 576, 579, 584, 586, 589, 593, 594, 601, 603, 606, 608, 609, 613, 616, 617, 620, 627, 628, 632, 636, 637, 663, 666, 668, 671, 673, 675, 680, 683, 685, 689, 691, 693, 695, 701, 702, 707, 708, 710],
@@ -630,12 +635,14 @@ async def show_storage(author, is_sorted=False, box=1, category=None):
     # save the compiled image
     storage.save(filename)
     # upload with bot
-    await pokemaster_bot.upload(filename)
+    await channel.send(file=File(filename))
     os.close(file)
 
 
-async def show_party(author):    
+async def show_party(context): 
+    author = context.message.author   
     party_list = database.get_party(author)
+    channel = context.message.channel
 
     party = Image.open("img/partyarea2.png")
 
@@ -691,13 +698,12 @@ async def show_party(author):
     file, filename = tempfile.mkstemp(".png")
     # save the compiled image
     party.save(filename)
-    print(filename)
     # upload with bot
-    await pokemaster_bot.upload(filename)
+    await channel.send(file=File(filename))
     os.close(file)
 
 
-async def get_pokedex(author, pkmn_id):
+async def get_pokedex(ctx, author, pkmn_id):
     color = _get_tier_color(int(pkmn_id))
     embed = Embed(color=color, description="**{}**'s Pokedex".format(author))
 
@@ -709,7 +715,8 @@ async def get_pokedex(author, pkmn_id):
 
         types = _get_types_string(pkmn["types"])
 
-        description = database.get_random_description(pkmn["descriptions"])
+        # description = database.get_random_description(pkmn["descriptions"])
+        description = "None"
 
         embed.add_field(name='Name', value="{} [{}]".format(pkmn_name, pkmn_id))
         embed.add_field(name="Types", value=types, inline=True)
@@ -720,12 +727,12 @@ async def get_pokedex(author, pkmn_id):
         embed.add_field(name='Speed', value=pkmn["speed"], inline=True)
         embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(pkmn_name_stripped))
         embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(pkmn_id))
-        return await pokemaster_bot.say(embed=embed)
+        return await ctx.send(embed=embed)
     else:
-        return await pokemaster_bot.say("Oak: You can't see what you don't have.")
+        return await ctx.send("Oak: You can't see what you don't have.")
 
 
-async def get_trainer_info(author):
+async def get_trainer_info(ctx, author):
     total_caught = database.get_total_caught(author)
     total_caught = "{}/718".format(total_caught)
     pokedollars = "₱{}".format(database.get_pokedollars(author))
@@ -737,7 +744,7 @@ async def get_trainer_info(author):
     embed.add_field(name='Money', value=pokedollars)
     embed.set_thumbnail(url="http://rs1240.pbsrc.com/albums/gg495/iKyle10/Pokemon%20Trainer/avatar514181_1_zpsfxp46su9.gif~c200")
     embed.set_image(url="https://archives.bulbagarden.net/media/upload/a/a0/Spr_B2W2_Hilbert.png")
-    return await pokemaster_bot.say(embed=embed)
+    return await ctx.send(embed=embed)
 
 
 def _get_types_string(types_list):

@@ -14,7 +14,7 @@ pokemon_db = client.pokemaster.pokemon
 users_db = client.pokemaster.users
 moves_db = client.pokemaster.moves
 
-pokeapi_url = "https://pokeapi.co/api/v1"
+pokeapi_url = "https://pokeapi.co/api/v2"
 
 
 def mongo_get(database, id=None, user=None):
