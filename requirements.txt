@@ -3,3 +3,4 @@ requests
 pymongo==3.5.1
 numpy
 pillow
+dnspython

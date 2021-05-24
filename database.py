@@ -2,6 +2,7 @@ import pymongo
 import requests
 import settings
 import json
+import dns
 from pprint import pprint
 from random import randint
 from numpy.random import choice
@@ -22,7 +23,7 @@ def mongo_get(database, id=None, user=None):
     Calls MongoDB and returns the pokemon object specified by its id
     """
     if database.name in ('pokemon', 'users'):
-        return database.find_one({'national_id': id})
+        return database.find_one({'id': id})
 
 
 def api_get(type, id):
@@ -83,17 +84,17 @@ def get_random_description(desc_list):
 
 def add_pokemon(user, pokemon, shiny=False):
     users_db[user]["storage"].insert_one({
-        "national_id": pokemon["national_id"],
+        "national_id": pokemon["id"],
         "name": pokemon["name"],
-        "health": pokemon["hp"],
-        "hp": pokemon["hp"],
-        "attack": pokemon["attack"],
-        "defense": pokemon["defense"],
-        "sp_atk": pokemon["sp_atk"],
-        "sp_def": pokemon["sp_def"],
-        "speed": pokemon["speed"],
+        "health": pokemon['stats'][0]["base_stat"],
+        "hp": pokemon['stats'][0]["base_stat"],
+        "attack": pokemon['stats'][1]["base_stat"],
+        "defense": pokemon['stats'][2]["base_stat"],
+        "sp_atk": pokemon['stats'][3]["base_stat"],
+        "sp_def": pokemon['stats'][4]["base_stat"],
+        "speed": pokemon['stats'][5]["base_stat"],
         "candies": 1,
-        "evolutions": pokemon["evolutions"],
+        "evolutions": 'to be replaced',
         "shiny": shiny,
         "friendship": 0,
         "item": None

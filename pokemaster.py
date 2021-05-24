@@ -1,9 +1,3 @@
-######################################################
-#   Pokemaster Discord Bot
-#   Developer: Mark Spencer Tan
-#   Version: 01.01.00
-######################################################
-
 from discord.ext.commands import Bot
 from discord.ext.commands.cooldowns import BucketType
 from discord.embeds import Embed
@@ -67,7 +61,7 @@ async def deposit(ctx, money:int):
         await ctx.send("You are not the bot admin. Go awai.")
     
 
-@commands.cooldown(1, 20, type=BucketType.user)
+@commands.cooldown(1, 2, type=BucketType.user)
 @pokemaster_bot.group(pass_context=True)
 async def poke(ctx):
     """
@@ -120,7 +114,7 @@ async def battle(ctx, enemy, bet: int):
     return await battle_trainer(ctx, str(author), enemy, bet)
 
 
-@commands.cooldown(1, 4, type=BucketType.user)
+@commands.cooldown(1, 2, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
 async def storage(ctx, *args):
     """
@@ -175,8 +169,8 @@ async def add(ctx, pkmn_id: int):
     """
     res = database.add_to_party(ctx.message.author, pkmn_id)
     if not res:
-        ctx.send("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
-    return await show_party(ctx.message.author)
+        await ctx.send("**Oak**: Make sure you actually have that pokemon or if your party is not full ya scrub.")
+    return await show_party(ctx)
 
 
 @commands.cooldown(1, 2, type=BucketType.user)
@@ -220,7 +214,7 @@ async def release(ctx, pkmn_id: int):
     await ctx.send(message)
 
 
-@commands.cooldown(1, 5, type=BucketType.user)
+@commands.cooldown(1, 1, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
 async def pokedex(ctx, pokemon_id: int):
     """
@@ -230,7 +224,7 @@ async def pokedex(ctx, pokemon_id: int):
     return await get_pokedex(ctx, ctx.message.author, pokemon_id)
 
 
-@commands.cooldown(1, 5, type=BucketType.user)
+@commands.cooldown(1, 2, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
 async def trainer(ctx, trainer=None):
     """
@@ -244,7 +238,7 @@ async def trainer(ctx, trainer=None):
     return await get_trainer_info(ctx, trainer)
 
 
-@commands.cooldown(1, 60, type=BucketType.user)
+@commands.cooldown(1, 30, type=BucketType.user)
 @pokemaster_bot.command(pass_context=True)
 async def pokecenter(ctx, *args):
     """
@@ -291,7 +285,7 @@ def get_member(name):
 async def catch(ctx):
     message = ctx.message
     pkmn = database.get_random_pokemon()
-    pkmn_id = pkmn["national_id"]
+    pkmn_id = pkmn["id"]
     pkmn_name = pkmn["name"]
     pkmn_name_stripped = pkmn_name.lower().split("-")[0]
 
@@ -327,8 +321,8 @@ async def battle(ctx):
     message = ctx.message
     author = message.author
     wild_pkmn = database.get_random_pokemon(type="battle")
-    wild_pkmn_id = wild_pkmn["national_id"]
-    wild_pkmn["health"] = wild_pkmn["hp"]
+    wild_pkmn_id = wild_pkmn["id"]
+    wild_pkmn["health"] = wild_pkmn['stats'][0]['base_stat']
     wild_pkmn_name = wild_pkmn["name"]
     wild_pkmn_name_stripped = wild_pkmn_name.lower().split("-")[0]
 
@@ -357,7 +351,10 @@ async def battle(ctx):
 
     color = _get_tier_color(wild_pkmn_id)
     embed = Embed(color=color, description="**{}** you encountered **{}**".format(message.author, wild_pkmn_name_stripped))
-    embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(last_pkmn["national_id"]))
+    try:
+        embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(last_pkmn["id"]))
+    except:
+        embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(last_pkmn["national_id"]))
     # embed.add_field(name="Fainted Pokemon", value=", ".join(fainted))
     embed.set_image(
         url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(wild_pkmn_name.lower()))
@@ -459,7 +456,7 @@ def _fight_wild(author, pkmn, enemy):
     :return: The remaining health of the enemy
     """
     while True:
-        if pkmn["speed"] > enemy["speed"]:
+        if pkmn["speed"] > enemy['stats'][5]['base_stat']:
             # you go first
             enemy["health"] = _attack(pkmn, enemy)
             if enemy["health"] <= 0:
@@ -521,13 +518,25 @@ def _attack(pkmn1, pkmn2) -> int:
     pkmn1 attacks pkmn2
     :return: Return pkmn2's health after the battle
     """
-    pkmn1_obj = database.get_pokemon(pkmn1["national_id"])
-    pkmn2_obj = database.get_pokemon(pkmn2["national_id"])
+    try:
+        pkmn1_obj = database.get_pokemon(pkmn1["id"])
+    except:
+        pkmn1_obj = database.get_pokemon(pkmn1["national_id"])
+    try:
+        pkmn2_obj = database.get_pokemon(pkmn2["id"])
+    except:
+        pkmn2_obj = database.get_pokemon(pkmn2["national_id"])
 
     eff = _get_effectiveness(pkmn1_obj["types"], pkmn2_obj["types"])
     r = random.uniform(0.8, 1.2)
-    power = (pkmn1["attack"] + pkmn1["sp_atk"])/2 * eff * 30
-    power /= (pkmn2["defense"] + pkmn2["sp_def"])/2
+    try:
+        power = (pkmn1["attack"] + pkmn1["sp_atk"])/2 * eff * 30
+    except:
+        power = (pkmn1['stats'][1]['base_stat'] + pkmn1['stats'][3]['base_stat'])/2 * eff * 30
+    try:
+        power /= (pkmn2["defense"] + pkmn2["sp_def"])/2
+    except:
+        power /= (pkmn2['stats'][2]['base_stat'] + pkmn2['stats'][4]['base_stat'])/2
     # print("effectiveness: %s rand: %s power: %d" % (eff, r, power))
     pkmn2["health"] -= power
 
@@ -545,7 +554,7 @@ def _get_effectiveness(types1: list, types2: list):
     for type1 in types1:
         for type2 in types2:
             try:
-                ratio = ratio * effectiveness.chart[type1["name"]][type2["name"]]
+                ratio = ratio * effectiveness.chart[type1['type']["name"]][type2['type']["name"]]
             except KeyError:
                 continue
     return ratio
@@ -640,7 +649,7 @@ async def show_storage(ctx, author, is_sorted=False, box=1, category=None):
 
 
 async def show_party(context): 
-    author = context.message.author   
+    author = context.message.author
     party_list = database.get_party(author)
     channel = context.message.channel
 
@@ -709,7 +718,7 @@ async def get_pokedex(ctx, author, pkmn_id):
 
     if database.is_caught(author, pkmn_id):
         pkmn = database.get_pokemon(pkmn_id)
-        pkmn_id = pkmn["national_id"]
+        pkmn_id = pkmn["id"]
         pkmn_name = pkmn["name"]
         pkmn_name_stripped = pkmn_name.lower().split("-")[0]
 
@@ -721,10 +730,10 @@ async def get_pokedex(ctx, author, pkmn_id):
         embed.add_field(name='Name', value="{} [{}]".format(pkmn_name, pkmn_id))
         embed.add_field(name="Types", value=types, inline=True)
         embed.add_field(name='Description', value=description, inline=False)
-        embed.add_field(name='Hp', value=pkmn["hp"], inline=True)
-        embed.add_field(name='Attack', value=pkmn["attack"], inline=True)
-        embed.add_field(name='Defense', value=pkmn["defense"], inline=True)
-        embed.add_field(name='Speed', value=pkmn["speed"], inline=True)
+        embed.add_field(name='Hp', value=pkmn['stats'][0]['base_stat'], inline=True)
+        embed.add_field(name='Attack', value=pkmn['stats'][1]['base_stat'], inline=True)
+        embed.add_field(name='Defense', value=pkmn['stats'][2]['base_stat'], inline=True)
+        embed.add_field(name='Speed', value=pkmn['stats'][5]['base_stat'], inline=True)
         embed.set_image(url="http://www.pkparaiso.com/imagenes/xy/sprites/animados/{}.gif".format(pkmn_name_stripped))
         embed.set_thumbnail(url="http://marktan.us/pokemon/img/icons/{}.png".format(pkmn_id))
         return await ctx.send(embed=embed)
@@ -753,7 +762,7 @@ def _get_types_string(types_list):
     """
     type_str = ""
     for type in types_list:
-        type_str += "{} {} ".format(emojis.get_emoji(type['name']), type['name'])
+        type_str += "{} {} ".format(emojis.get_emoji(type['type']['name']), type['type']['name'])
     return type_str
 
 
