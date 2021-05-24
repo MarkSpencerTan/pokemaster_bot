@@ -1,5 +1,5 @@
 # pokemaster_bot
-A discord pokemon rpg bot made with python
+A discord pokemon rpg bot made with python. Originally made by Mark Spencer Tan, this fork is updated to work with PokeApi v3
 
 # how to setup
 1. fill out settings.py with appropriate variables
